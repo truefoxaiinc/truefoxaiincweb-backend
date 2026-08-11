@@ -2,7 +2,7 @@ import hashlib
 import math
 import re
 
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, OpenAIError
 
 from app.config import get_settings
 
@@ -30,7 +30,7 @@ class EmbeddingService:
         self.settings = settings
         self.client = (
             AsyncOpenAI(api_key=settings.openai_api_key, base_url=settings.openai_base_url)
-            if settings.openai_api_key
+            if settings.openai_api_key and not settings.mock_llm
             else None
         )
 
@@ -39,13 +39,16 @@ class EmbeddingService:
             return []
         if not self.client:
             return [local_embedding(text, self.settings.embedding_dimensions) for text in texts]
-        response = await self.client.embeddings.create(
-            model=self.settings.embedding_model,
-            input=texts,
-            dimensions=self.settings.embedding_dimensions,
-            encoding_format="float",
-        )
-        return [_normalize(item.embedding) for item in sorted(response.data, key=lambda item: item.index)]
+        try:
+            response = await self.client.embeddings.create(
+                model=self.settings.embedding_model,
+                input=texts,
+                dimensions=self.settings.embedding_dimensions,
+                encoding_format="float",
+            )
+            return [_normalize(item.embedding) for item in sorted(response.data, key=lambda item: item.index)]
+        except OpenAIError:
+            return [local_embedding(text, self.settings.embedding_dimensions) for text in texts]
 
     async def embed_one(self, text: str) -> list[float]:
         return (await self.embed_many([text]))[0]

@@ -66,3 +66,17 @@ def test_public_lead_validation_and_storage(clean_database):
     valid = clean_database.post("/api/v1/leads", json={"name": "Ada Lovelace", "email": "ada@example.com", "message": "We need a private AI assistant for our support team.", "consent": True, "intent": "demo"})
     assert valid.status_code == 201
     assert valid.json()["reference"]
+
+
+def test_website_parser_indexes_only_main_content():
+    from app.services.website_sync import MainTextParser
+
+    parser = MainTextParser()
+    parser.feed("<html><head><title>Services | Truefox AI</title><script>secret()</script></head><body><nav>Repeated navigation</nav><main><h1>AI Services</h1><p>Computer vision and private AI assistants.</p></main><footer>Repeated footer</footer></body></html>")
+    title, content = parser.result()
+    assert title == "Services | Truefox AI"
+    assert "AI Services" in content
+    assert "private AI assistants" in content
+    assert "Repeated navigation" not in content
+    assert "Repeated footer" not in content
+    assert "secret" not in content

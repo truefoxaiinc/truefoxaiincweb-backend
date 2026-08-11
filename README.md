@@ -10,6 +10,7 @@ python -m venv .venv
 pip install -e ".[dev]"
 Copy-Item .env.example .env
 python -m scripts.seed_knowledge
+python -m scripts.sync_website --base-url http://localhost:3000
 python -m scripts.migrate_legacy_cms ../data/cms.json
 uvicorn app.main:app --reload --port 8000
 ```
@@ -21,6 +22,8 @@ The frontend proxies requests through `/api/chat`, using `AI_BACKEND_URL` on the
 ## Knowledge management
 
 Send `X-Admin-Key` with all `/api/v1/knowledge` requests. Supported sources are manual text, PDF/TXT/Markdown/CSV/HTML upload, and public HTTP(S) URLs. URL ingestion rejects private/local addresses and redirects to reduce SSRF risk.
+
+Run `python -m scripts.sync_website` after approved website content changes. In production, `POST /api/v1/knowledge/sync-website` refreshes the full configured company site and is protected by `X-Admin-Key`.
 
 ```powershell
 curl.exe -X POST http://127.0.0.1:8000/api/v1/knowledge/text -H "X-Admin-Key: your-key" -H "Content-Type: application/json" -d '{"title":"FAQ","source":"/faq","text":"Approved company information..."}'

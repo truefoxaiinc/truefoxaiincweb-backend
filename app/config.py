@@ -1,8 +1,9 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Annotated
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -18,7 +19,8 @@ class Settings(BaseSettings):
     admin_session_secret: str = ""
     admin_token_minutes: int = 480
     leads_webhook_url: str = ""
-    frontend_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+    company_site_url: str = "https://truefoxaiinc.com"
+    frontend_origins: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["http://localhost:3000"])
     openai_api_key: str = ""
     openai_base_url: str | None = None
     chat_model: str = "gpt-5-mini"

@@ -9,9 +9,9 @@ def save_document(*, title: str, source: str, mime_type: str, checksum: str, met
     document_id = str(uuid4())
     now = utcnow()
     with transaction() as connection:
-        existing = connection.execute("SELECT id FROM documents WHERE checksum = ?", (checksum,)).fetchone()
-        if existing:
-            connection.execute("DELETE FROM documents WHERE id = ?", (existing["id"],))
+        existing = connection.execute("SELECT id FROM documents WHERE checksum = ? OR source = ?", (checksum, source)).fetchall()
+        for row in existing:
+            connection.execute("DELETE FROM documents WHERE id = ?", (row["id"],))
         connection.execute(
             "INSERT INTO documents(id,title,source,mime_type,checksum,metadata,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
             (document_id, title, source, mime_type, checksum, json.dumps(metadata), now, now),

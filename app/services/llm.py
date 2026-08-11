@@ -1,6 +1,6 @@
 from collections.abc import AsyncIterator
 
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, OpenAIError
 
 from app.config import get_settings
 
@@ -16,9 +16,15 @@ class LLMService:
         self.settings = get_settings()
         self.client = (
             AsyncOpenAI(api_key=self.settings.openai_api_key, base_url=self.settings.openai_base_url)
-            if self.settings.openai_api_key
+            if self.settings.openai_api_key and not self.settings.mock_llm
             else None
         )
+
+    @staticmethod
+    def _grounded_fallback(contexts: list[str]) -> str:
+        if contexts:
+            return f"Based on our verified website information: {contexts[0][:700].strip()} [1]"
+        return "I don’t have verified information for that question yet. Please contact the Truefox AI team through /contact."
 
     def _input(self, question: str, history: list[dict[str, str]], contexts: list[str]) -> list[dict[str, str]]:
         context = "\n\n".join(f"[{index}] {text}" for index, text in enumerate(contexts, 1)) or "No relevant verified context was retrieved."
@@ -28,25 +34,34 @@ class LLMService:
 
     async def answer(self, question: str, history: list[dict[str, str]], contexts: list[str]) -> str:
         if not self.client:
-            if contexts:
-                return f"Based on our verified website information: {contexts[0][:700].strip()} [1]"
-            return "I don’t have verified information for that question yet. Please contact the Truefox AI team through /contact."
-        response = await self.client.responses.create(
-            model=self.settings.chat_model, instructions=SYSTEM_PROMPT,
-            input=self._input(question, history, contexts), store=False, max_output_tokens=500,
-        )
-        return response.output_text.strip()
+            return self._grounded_fallback(contexts)
+        try:
+            response = await self.client.responses.create(
+                model=self.settings.chat_model,
+                instructions=SYSTEM_PROMPT,
+                input=self._input(question, history, contexts),
+                store=False,
+                max_output_tokens=500,
+            )
+            return response.output_text.strip()
+        except OpenAIError:
+            return self._grounded_fallback(contexts)
 
     async def stream(self, question: str, history: list[dict[str, str]], contexts: list[str]) -> AsyncIterator[str]:
-        if not self.client:
-            answer = await self.answer(question, history, contexts)
-            for word in answer.split():
-                yield f"{word} "
-            return
-        async with self.client.responses.stream(
-            model=self.settings.chat_model, instructions=SYSTEM_PROMPT,
-            input=self._input(question, history, contexts), store=False, max_output_tokens=500,
-        ) as stream:
-            async for event in stream:
-                if event.type == "response.output_text.delta":
-                    yield event.delta
+        if self.client:
+            try:
+                async with self.client.responses.stream(
+                    model=self.settings.chat_model,
+                    instructions=SYSTEM_PROMPT,
+                    input=self._input(question, history, contexts),
+                    store=False,
+                    max_output_tokens=500,
+                ) as stream:
+                    async for event in stream:
+                        if event.type == "response.output_text.delta":
+                            yield event.delta
+                    return
+            except OpenAIError:
+                pass
+        for word in self._grounded_fallback(contexts).split():
+            yield f"{word} "

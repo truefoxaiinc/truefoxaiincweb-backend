@@ -44,6 +44,10 @@ class UrlIngestRequest(BaseModel):
     title: str | None = Field(default=None, max_length=240)
 
 
+class WebsiteSyncRequest(BaseModel):
+    base_url: HttpUrl | None = None
+
+
 class ConversationMessage(BaseModel):
     id: str
     role: Literal["user", "assistant"]
