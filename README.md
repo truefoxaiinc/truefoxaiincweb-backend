@@ -1,0 +1,34 @@
+# Truefox AI private RAG backend
+
+Independent FastAPI service for the website chatbot. It provides document ingestion, chunking, embeddings, cosine retrieval, cited LLM answers, persistent conversations, SSE streaming, API-key-protected knowledge administration, rate limiting, health checks, tests, and Docker support.
+
+## Local setup
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+Copy-Item .env.example .env
+python -m scripts.seed_knowledge
+python -m scripts.migrate_legacy_cms ../data/cms.json
+uvicorn app.main:app --reload --port 8000
+```
+
+Set `OPENAI_API_KEY` in `.env`. Without it, the service uses deterministic local embeddings and a grounded extractive response, which is useful for local development. Set a strong random `ADMIN_API_KEY` before exposing the service.
+
+The frontend proxies requests through `/api/chat`, using `AI_BACKEND_URL` on the Next.js server. API docs are available at `http://127.0.0.1:8000/docs` in non-production environments.
+
+## Knowledge management
+
+Send `X-Admin-Key` with all `/api/v1/knowledge` requests. Supported sources are manual text, PDF/TXT/Markdown/CSV/HTML upload, and public HTTP(S) URLs. URL ingestion rejects private/local addresses and redirects to reduce SSRF risk.
+
+```powershell
+curl.exe -X POST http://127.0.0.1:8000/api/v1/knowledge/text -H "X-Admin-Key: your-key" -H "Content-Type: application/json" -d '{"title":"FAQ","source":"/faq","text":"Approved company information..."}'
+```
+
+## Verification
+
+```powershell
+pytest
+ruff check app tests scripts
+```
