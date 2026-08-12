@@ -39,7 +39,8 @@ class LLMService:
             return self._grounded_fallback(question, contexts)
         try:
             response = await self.client.responses.create(model=self.settings.chat_model, instructions=SYSTEM_PROMPT, input=self._input(question, history, contexts), store=False, max_output_tokens=350)
-            return response.output_text.strip()
+            answer = response.output_text.strip()
+            return answer if answer else self._grounded_fallback(question, contexts)
         except OpenAIError:
             return self._grounded_fallback(question, contexts)
 

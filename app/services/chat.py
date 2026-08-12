@@ -9,7 +9,8 @@ from app.services.retrieval import retrieve
 
 SMALL_TALK = re.compile(
     r"^(?:hi|hello|hey|hiya|howdy|good\s+(?:morning|afternoon|evening)|how\s+are\s+you|"
-    r"how(?:'s| is)\s+it\s+going|thanks?|thank\s+you|bye|goodbye)[!,.?\s]*$",
+    r"how(?:'s| is)\s+it\s+going|what(?:'s| is)\s+your\s+name|who\s+are\s+you|"
+    r"thanks?|thank\s+you|bye|goodbye)[!,.?\s]*$",
     re.IGNORECASE,
 )
 

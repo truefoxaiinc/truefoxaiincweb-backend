@@ -47,6 +47,8 @@ def test_small_talk_is_natural_and_skips_company_sources(clean_database):
     payload = response.json()
     assert payload["citations"] == []
     assert len(payload["answer"].split()) < 50
+    identity = clean_database.post("/api/v1/chat", json={"message": "What's your name?"}).json()
+    assert identity["citations"] == []
 
 
 def test_admin_crud_public_content_and_application(clean_database):
