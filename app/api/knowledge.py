@@ -6,10 +6,16 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from app.schemas import DocumentResponse, TextIngestRequest, UrlIngestRequest, WebsiteSyncRequest
 from app.security import require_knowledge_admin
 from app.services.ingestion import ingest_file, ingest_text, ingest_url
+from app.services.llm import check_llm_connection
 from app.services.repository import delete_document, list_documents
 from app.services.website_sync import sync_website
 
 router = APIRouter(prefix="/api/v1/knowledge", tags=["knowledge"], dependencies=[Depends(require_knowledge_admin)])
+
+
+@router.get("/diagnostics/llm")
+async def llm_diagnostic() -> dict[str, object]:
+    return await check_llm_connection()
 
 
 @router.get("", response_model=list[DocumentResponse])

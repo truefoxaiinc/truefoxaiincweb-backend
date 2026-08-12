@@ -51,7 +51,13 @@ class EmbeddingService:
             )
             return [_normalize(item.embedding) for item in sorted(response.data, key=lambda item: item.index)]
         except OpenAIError as error:
-            logger.error("embedding_provider_failed provider=openai model=%s error=%s", self.settings.embedding_model, type(error).__name__)
+            response = getattr(error, "response", None)
+            status_code = getattr(error, "status_code", None) or getattr(response, "status_code", None)
+            request_id = getattr(error, "request_id", None) or (response.headers.get("x-request-id") if response is not None else None)
+            logger.error(
+                "provider_request_failed provider=openai operation=embeddings.create model=%s error_type=%s status_code=%s request_id=%s fallback=local",
+                self.settings.embedding_model, type(error).__name__, status_code or "none", request_id or "none",
+            )
             return [local_embedding(text, self.settings.embedding_dimensions) for text in texts]
 
     async def embed_one(self, text: str) -> list[float]:

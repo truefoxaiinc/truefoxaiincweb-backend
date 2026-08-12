@@ -15,6 +15,7 @@ from app.services.query_resolver import resolve_query
         ("Tell me about your products", Intent.PRODUCTS, None),
         ("What is Attention Minder?", Intent.PRODUCT_DETAIL, "Attention Minder"),
         ("What about Attention Minder?", Intent.PRODUCT_DETAIL, "Attention Minder"),
+        ("I need to make a website for my company", Intent.SERVICE_DETAIL, "Web Development"),
         ("Careers?", Intent.CAREERS, None),
         ("How can I apply?", Intent.CAREERS, None),
         ("Contact details", Intent.CONTACT, None),

@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -10,10 +11,19 @@ from app.api.website import router as website_router
 from app.config import get_settings
 from app.database import migrate
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     migrate()
+    runtime = get_settings()
+    if runtime.mock_llm:
+        logger.warning("startup_llm_unavailable reason=mock_mode model=%s", runtime.chat_model)
+    elif not runtime.openai_api_key:
+        logger.warning("startup_llm_unavailable reason=missing_api_key model=%s", runtime.chat_model)
+    else:
+        logger.info("startup_llm_configured provider=openai model=%s embedding_model=%s base_url_custom=%s", runtime.chat_model, runtime.embedding_model, bool(runtime.openai_base_url))
     yield
 
 

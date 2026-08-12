@@ -1,13 +1,24 @@
 import logging
 import re
+from asyncio import sleep
 from collections.abc import AsyncIterator
 
-from openai import AsyncOpenAI, OpenAIError
+from openai import (
+    APIConnectionError,
+    APITimeoutError,
+    AsyncOpenAI,
+    AuthenticationError,
+    BadRequestError,
+    NotFoundError,
+    OpenAIError,
+    RateLimitError,
+)
 
 from app.config import get_settings
 from app.services.intent import Intent
 
 logger = logging.getLogger(__name__)
+TRANSIENT_ERRORS = (RateLimitError, APITimeoutError, APIConnectionError)
 
 SYSTEM_PROMPT = """You are the official Truefox AI website assistant.
 
@@ -61,6 +72,36 @@ class LLMService:
         messages.append({"role": "user", "content": f"APPROVED CONTEXT:\n{context}\n\nVISITOR QUESTION:\n{question}"})
         return messages
 
+    def _log_error(self, error: OpenAIError, *, operation: str, attempt: int) -> None:
+        response = getattr(error, "response", None)
+        status_code = getattr(error, "status_code", None) or getattr(response, "status_code", None)
+        request_id = getattr(error, "request_id", None) or (response.headers.get("x-request-id") if response is not None else None)
+        logger.error(
+            "provider_request_failed provider=openai operation=%s model=%s error_type=%s status_code=%s request_id=%s attempt=%d",
+            operation, self.settings.chat_model, type(error).__name__, status_code or "none", request_id or "none", attempt,
+        )
+
+    async def _create_response(self, *, instructions: str, input_messages: list[dict[str, str]], max_output_tokens: int):
+        if not self.client:
+            raise RuntimeError("LLM client is not configured")
+        for attempt in (1, 2):
+            try:
+                return await self.client.responses.create(
+                    model=self.settings.chat_model,
+                    instructions=instructions,
+                    input=input_messages,
+                    store=False,
+                    max_output_tokens=max_output_tokens,
+                )
+            except TRANSIENT_ERRORS as error:
+                self._log_error(error, operation="responses.create", attempt=attempt)
+                if attempt == 2:
+                    raise
+                await sleep(0.25)
+            except (AuthenticationError, BadRequestError, NotFoundError, OpenAIError) as error:
+                self._log_error(error, operation="responses.create", attempt=attempt)
+                raise
+
     async def answer(self, question: str, history: list[dict[str, str]], contexts: list[str], *, intent: Intent, entity: str | None) -> str:
         deterministic = self.deterministic_reply(question, intent, entity)
         if deterministic:
@@ -72,16 +113,30 @@ class LLMService:
             logger.warning("llm_fallback reason=not_configured intent=%s", intent)
             return self.safe_fallback(True)
         try:
-            response = await self.client.responses.create(model=self.settings.chat_model, instructions=SYSTEM_PROMPT, input=self._input(question, history, contexts), store=False, max_output_tokens=450)
+            response = await self._create_response(instructions=SYSTEM_PROMPT, input_messages=self._input(question, history, contexts), max_output_tokens=450)
             answer = response.output_text.strip()
             if not answer:
                 logger.warning("llm_fallback reason=empty_response intent=%s", intent)
                 return self.safe_fallback(True)
             return re.sub(r"\s*\[\d+\]", "", answer).strip()
-        except OpenAIError as error:
-            logger.error("llm_request_failed model=%s intent=%s error=%s", self.settings.chat_model, intent, type(error).__name__)
+        except OpenAIError:
             return self.safe_fallback(True)
 
     async def stream(self, question: str, history: list[dict[str, str]], contexts: list[str], *, intent: Intent, entity: str | None) -> AsyncIterator[str]:
         answer = await self.answer(question, history, contexts, intent=intent, entity=entity)
         yield answer
+
+
+async def check_llm_connection() -> dict[str, object]:
+    service = LLMService()
+    if not service.client:
+        return {"ok": False, "provider": "openai", "model": service.settings.chat_model, "error_type": "NotConfigured"}
+    try:
+        response = await service._create_response(
+            instructions="Reply with exactly OK.",
+            input_messages=[{"role": "user", "content": "Connection check"}],
+            max_output_tokens=8,
+        )
+        return {"ok": bool(response.output_text.strip()), "provider": "openai", "model": service.settings.chat_model}
+    except OpenAIError as error:
+        return {"ok": False, "provider": "openai", "model": service.settings.chat_model, "error_type": type(error).__name__}
