@@ -110,3 +110,15 @@ def test_admin_session_can_manage_knowledge_and_natural_service_query(clean_data
     chat = clean_database.post("/api/v1/chat", json={"message": "what service you are providing"})
     assert chat.status_code == 200
     assert chat.json()["citations"][0]["source"] == "/services"
+
+
+def test_admin_cookie_survives_navigation_and_logout(clean_database):
+    login = clean_database.post("/api/v1/admin/login", json={"username": "admin@example.com", "password": "test-password"})
+    assert login.status_code == 200
+    assert "truefox_admin_session" in login.cookies
+    assert clean_database.get("/api/v1/admin/session").json()["username"] == "admin@example.com"
+    assert clean_database.get("/api/v1/admin/data").status_code == 200
+    assert clean_database.get("/api/v1/knowledge").status_code == 200
+    logout = clean_database.post("/api/v1/admin/logout")
+    assert logout.status_code == 204
+    assert clean_database.get("/api/v1/admin/session").status_code == 401

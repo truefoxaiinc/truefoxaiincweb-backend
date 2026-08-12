@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     admin_password: str = ""
     admin_session_secret: str = ""
     admin_token_minutes: int = 480
+    admin_cookie_domain: str = ".truefoxaiinc.com"
     leads_webhook_url: str = ""
     company_site_url: str = "https://truefoxaiinc.com"
     frontend_origins: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["http://localhost:3000"])

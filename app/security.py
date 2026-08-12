@@ -15,12 +15,14 @@ def require_admin(x_admin_key: str = Header(default="")) -> None:
 
 
 def require_knowledge_admin(
-    authorization: str = Header(default=""), x_admin_key: str = Header(default="")
+    request: Request,
+    authorization: str = Header(default=""),
+    x_admin_key: str = Header(default=""),
 ) -> str:
     settings = get_settings()
     if x_admin_key and settings.admin_api_key and hmac.compare_digest(x_admin_key, settings.admin_api_key):
         return "api-key"
-    return require_session(authorization)
+    return require_session(authorization, request.cookies.get("truefox_admin_session", ""))
 
 
 class RateLimiter:

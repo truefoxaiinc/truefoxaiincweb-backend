@@ -3,7 +3,7 @@ import re
 from typing import Any, Literal
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from app.admin_auth import create_token, require_session
@@ -35,11 +35,33 @@ class PublicForm(BaseModel):
 
 
 @router.post("/admin/login")
-def login(body: Login) -> dict[str, str]:
+def login(body: Login, response: Response) -> dict[str, str]:
     settings = get_settings()
     if not settings.admin_password or not hmac.compare_digest(body.username, settings.admin_username) or not hmac.compare_digest(body.password, settings.admin_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    return {"access_token": create_token(body.username), "token_type": "bearer"}
+    token = create_token(body.username)
+    response.set_cookie(
+        "truefox_admin_session",
+        token,
+        max_age=settings.admin_token_minutes * 60,
+        httponly=True,
+        secure=settings.app_env == "production",
+        samesite="lax",
+        domain=settings.admin_cookie_domain if settings.app_env == "production" else None,
+        path="/",
+    )
+    return {"access_token": token, "token_type": "bearer"}
+
+
+@router.post("/admin/logout", status_code=204)
+def logout(response: Response) -> None:
+    settings = get_settings()
+    response.delete_cookie("truefox_admin_session", domain=settings.admin_cookie_domain if settings.app_env == "production" else None, path="/")
+
+
+@router.get("/admin/session")
+def session(actor: str = Depends(require_session)) -> dict[str, str]:
+    return {"username": actor}
 
 
 @router.get("/admin/data")

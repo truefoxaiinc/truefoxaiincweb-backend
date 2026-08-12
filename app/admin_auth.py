@@ -4,7 +4,7 @@ import hmac
 import json
 import time
 
-from fastapi import Header, HTTPException
+from fastapi import Cookie, Header, HTTPException
 
 from app.config import get_settings
 
@@ -16,11 +16,14 @@ def create_token(username: str) -> str:
     return f"{payload}.{signature}"
 
 
-def require_session(authorization: str = Header(default="")) -> str:
+def require_session(
+    authorization: str = Header(default=""),
+    truefox_admin_session: str = Cookie(default=""),
+) -> str:
     settings = get_settings()
-    if not settings.session_secret or not authorization.startswith("Bearer "):
+    token = authorization[7:] if authorization.startswith("Bearer ") else truefox_admin_session
+    if not settings.session_secret or not token:
         raise HTTPException(status_code=401, detail="Authentication required")
-    token = authorization[7:]
     try:
         payload, supplied = token.rsplit(".", 1)
         expected = hmac.new(settings.session_secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
