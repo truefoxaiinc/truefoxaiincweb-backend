@@ -1,52 +1,49 @@
 import json
-import re
+import logging
 from collections.abc import AsyncIterator
 
 from app.schemas import ChatResponse
+from app.services.intent import Intent
 from app.services.llm import LLMService
+from app.services.query_resolver import ResolvedQuery, resolve_query
 from app.services.repository import ensure_conversation, recent_messages, save_message
 from app.services.retrieval import retrieve
 
-SMALL_TALK = re.compile(
-    r"^(?:hi|hello|hey|hiya|howdy|good\s+(?:morning|afternoon|evening)|how\s+are\s+you|"
-    r"how(?:'s| is)\s+it\s+going|what(?:'s| is)\s+your\s+name|who\s+are\s+you|"
-    r"thanks?|thank\s+you|bye|goodbye)[!,.?\s]*$",
-    re.IGNORECASE,
-)
+logger = logging.getLogger(__name__)
 
 
-def is_small_talk(message: str) -> bool:
-    return bool(SMALL_TALK.fullmatch(message.strip()))
+async def _prepare(message: str, conversation_id: str | None) -> tuple[str, list[dict[str, str]], ResolvedQuery, list[dict[str, object]], list]:
+    identifier = ensure_conversation(conversation_id)
+    history = recent_messages(identifier, limit=8)
+    resolved = resolve_query(message, history)
+    if resolved.intent == Intent.SMALL_TALK:
+        return identifier, history, resolved, [], []
+    matches, citations = await retrieve(resolved.retrieval_query, intent=resolved.intent, entity=resolved.entity)
+    return identifier, history, resolved, matches, citations
 
 
 async def chat(message: str, conversation_id: str | None) -> ChatResponse:
-    identifier = ensure_conversation(conversation_id)
-    history = recent_messages(identifier)
-    previous_user = next((item["content"] for item in reversed(history) if item["role"] == "user"), "")
-    retrieval_query = f"{previous_user}\n{message}" if previous_user else message
-    matches, citations = ([], []) if is_small_talk(message) else await retrieve(retrieval_query)
+    identifier, history, resolved, matches, citations = await _prepare(message, conversation_id)
     save_message(identifier, "user", message)
-    answer = await LLMService().answer(message, history, [item["content"] for item in matches])
+    relevant_history = history[-6:] if resolved.used_context or resolved.intent == Intent.SMALL_TALK else []
+    answer = await LLMService().answer(message, relevant_history, [str(item["content"]) for item in matches], intent=resolved.intent, entity=resolved.entity)
     citation_data = [item.model_dump() for item in citations]
     save_message(identifier, "assistant", answer, citation_data)
+    logger.info("chat_completed intent=%s entity=%s context_chunks=%d contextual=%s", resolved.intent, resolved.entity or "none", len(matches), resolved.used_context)
     return ChatResponse(conversation_id=identifier, answer=answer, citations=citations)
 
 
 async def stream_chat(message: str, conversation_id: str | None) -> AsyncIterator[str]:
-    identifier = ensure_conversation(conversation_id)
-    history = recent_messages(identifier)
-    previous_user = next((item["content"] for item in reversed(history) if item["role"] == "user"), "")
-    retrieval_query = f"{previous_user}\n{message}" if previous_user else message
-    matches, citations = ([], []) if is_small_talk(message) else await retrieve(retrieval_query)
+    identifier, history, resolved, matches, citations = await _prepare(message, conversation_id)
     save_message(identifier, "user", message)
     citation_data = [item.model_dump() for item in citations]
     yield _event("meta", {"conversation_id": identifier, "citations": citation_data})
     pieces: list[str] = []
-    async for delta in LLMService().stream(message, history, [item["content"] for item in matches]):
+    relevant_history = history[-6:] if resolved.used_context or resolved.intent == Intent.SMALL_TALK else []
+    async for delta in LLMService().stream(message, relevant_history, [str(item["content"]) for item in matches], intent=resolved.intent, entity=resolved.entity):
         pieces.append(delta)
         yield _event("delta", {"text": delta})
-    answer = "".join(pieces).strip()
-    save_message(identifier, "assistant", answer, citation_data)
+    save_message(identifier, "assistant", "".join(pieces).strip(), citation_data)
     yield _event("done", {"conversation_id": identifier})
 
 

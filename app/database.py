@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS chunks (
   content TEXT NOT NULL,
   embedding TEXT NOT NULL,
   token_estimate INTEGER NOT NULL,
+  metadata TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL,
   UNIQUE(document_id, position)
 );
@@ -104,6 +105,9 @@ def transaction() -> Iterator[sqlite3.Connection]:
 def migrate() -> None:
     with closing(connect()) as connection:
         connection.executescript(MIGRATION)
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(chunks)")}
+        if "metadata" not in columns:
+            connection.execute("ALTER TABLE chunks ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'")
 
 
 def database_health() -> dict[str, object]:

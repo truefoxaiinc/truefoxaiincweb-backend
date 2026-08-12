@@ -25,10 +25,27 @@ async def ingest_text(*, title: str, source: str, text: str, mime_type: str = "t
     cleaned = text.strip()
     if len(cleaned) < 20:
         raise ValueError("Document text is too short.")
-    parts = chunk_text(cleaned)
-    embeddings = await EmbeddingService().embed_many(parts)
+    document_metadata = _infer_metadata(title, source) | (metadata or {})
+    parts = chunk_text(cleaned, metadata=document_metadata | {"source": source.strip()})
+    embeddings = await EmbeddingService().embed_many([part.content for part in parts])
     checksum = hashlib.sha256(cleaned.encode("utf-8")).hexdigest()
-    return save_document(title=title.strip(), source=source.strip(), mime_type=mime_type, checksum=checksum, metadata=metadata or {}, chunks=list(zip(parts, embeddings)))
+    chunks = [(part.content, embedding, part.metadata) for part, embedding in zip(parts, embeddings, strict=True)]
+    return save_document(title=title.strip(), source=source.strip(), mime_type=mime_type, checksum=checksum, metadata=document_metadata, chunks=chunks)
+
+
+def _infer_metadata(title: str, source: str) -> dict[str, str]:
+    label = f"{title} {source}".lower()
+    if "attention minder" in label:
+        return {"document_type": "product", "category": "products", "entity_name": "Attention Minder"}
+    mappings = {
+        "career": ("career", "careers"), "job": ("career", "careers"),
+        "contact": ("contact", "contact"), "demo": ("demo", "contact"),
+        "product": ("product", "products"), "service": ("service", "services"),
+    }
+    for keyword, (document_type, category) in mappings.items():
+        if keyword in label:
+            return {"document_type": document_type, "category": category}
+    return {"document_type": "company", "category": "company"}
 
 
 async def ingest_file(*, filename: str, content: bytes, mime_type: str) -> dict[str, object]:

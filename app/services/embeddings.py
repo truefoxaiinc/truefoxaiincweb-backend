@@ -1,10 +1,13 @@
 import hashlib
+import logging
 import math
 import re
 
 from openai import AsyncOpenAI, OpenAIError
 
 from app.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize(vector: list[float]) -> list[float]:
@@ -47,7 +50,8 @@ class EmbeddingService:
                 encoding_format="float",
             )
             return [_normalize(item.embedding) for item in sorted(response.data, key=lambda item: item.index)]
-        except OpenAIError:
+        except OpenAIError as error:
+            logger.error("embedding_provider_failed provider=openai model=%s error=%s", self.settings.embedding_model, type(error).__name__)
             return [local_embedding(text, self.settings.embedding_dimensions) for text in texts]
 
     async def embed_one(self, text: str) -> list[float]:

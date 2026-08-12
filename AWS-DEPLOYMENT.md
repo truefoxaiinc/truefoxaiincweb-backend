@@ -17,6 +17,22 @@ Set `APP_ENV=production`, `HOST=0.0.0.0`, `DATABASE_PATH=/app/data/truefox.sqlit
 
 Build and publish the Docker image to ECR, create the EFS mount, and deploy one ECS task on port 8000. Configure the ALB health check as `GET /health`. Enable automatic EFS backups and CloudWatch retention.
 
+## Updating and re-indexing knowledge
+
+For the included Docker Compose deployment:
+
+```bash
+git pull
+docker compose build
+docker compose run --rm rag-api python -m scripts.seed_knowledge --reset
+docker compose up -d
+docker compose ps
+```
+
+`--reset` only replaces the `documents` and `chunks` knowledge tables. It does not delete CMS records, leads, applications, admin data, or conversations. Back up the mounted database before production maintenance and run this command with a single application writer.
+
+Verify the deployment with `GET /health`, then send representative requests to `POST /api/v1/chat`. The health response reports configuration and provider model names without returning API keys.
+
 ## Vercel environment
 
 Set `NEXT_PUBLIC_API_URL=https://api.truefoxaiinc.com`. No database, admin password, OpenAI key, or backend secret belongs in Vercel. Redeploy after changing this public URL.

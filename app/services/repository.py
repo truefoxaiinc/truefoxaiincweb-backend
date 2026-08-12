@@ -5,21 +5,24 @@ from uuid import uuid4
 from app.database import connect, decode_json, transaction, utcnow
 
 
-def save_document(*, title: str, source: str, mime_type: str, checksum: str, metadata: dict[str, str], chunks: list[tuple[str, list[float]]]) -> dict[str, object]:
+def save_document(*, title: str, source: str, mime_type: str, checksum: str, metadata: dict[str, str], chunks: list[tuple[str, list[float], dict[str, str]]]) -> dict[str, object]:
     document_id = str(uuid4())
     now = utcnow()
     with transaction() as connection:
-        existing = connection.execute("SELECT id FROM documents WHERE checksum = ? OR source = ?", (checksum, source)).fetchall()
+        existing = connection.execute(
+            "SELECT id FROM documents WHERE checksum = ? OR (source = ? AND title = ?)",
+            (checksum, source, title),
+        ).fetchall()
         for row in existing:
             connection.execute("DELETE FROM documents WHERE id = ?", (row["id"],))
         connection.execute(
             "INSERT INTO documents(id,title,source,mime_type,checksum,metadata,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
             (document_id, title, source, mime_type, checksum, json.dumps(metadata), now, now),
         )
-        for position, (content, embedding) in enumerate(chunks):
+        for position, (content, embedding, chunk_metadata) in enumerate(chunks):
             connection.execute(
-                "INSERT INTO chunks(id,document_id,position,content,embedding,token_estimate,created_at) VALUES(?,?,?,?,?,?,?)",
-                (str(uuid4()), document_id, position, content, json.dumps(embedding), max(1, len(content) // 4), now),
+                "INSERT INTO chunks(id,document_id,position,content,embedding,token_estimate,metadata,created_at) VALUES(?,?,?,?,?,?,?,?)",
+                (str(uuid4()), document_id, position, content, json.dumps(embedding), max(1, len(content) // 4), json.dumps(chunk_metadata), now),
             )
     return {"id": document_id, "title": title, "source": source, "mime_type": mime_type, "chunk_count": len(chunks), "created_at": now}
 
@@ -41,9 +44,15 @@ def delete_document(document_id: str) -> bool:
 def all_chunks() -> list[dict[str, object]]:
     with closing(connect()) as connection:
         rows = connection.execute(
-            "SELECT c.id,c.document_id,c.content,c.embedding,d.title,d.source FROM chunks c JOIN documents d ON d.id=c.document_id"
+            "SELECT c.id,c.document_id,c.content,c.embedding,c.metadata chunk_metadata,d.title,d.source,d.metadata document_metadata FROM chunks c JOIN documents d ON d.id=c.document_id"
         ).fetchall()
-    return [{**dict(row), "embedding": decode_json(row["embedding"], [])} for row in rows]
+    return [{**dict(row), "embedding": decode_json(row["embedding"], []), "metadata": decode_json(row["chunk_metadata"], {}) | decode_json(row["document_metadata"], {})} for row in rows]
+
+
+def reset_knowledge() -> None:
+    with transaction() as connection:
+        connection.execute("DELETE FROM chunks")
+        connection.execute("DELETE FROM documents")
 
 
 def ensure_conversation(conversation_id: str | None) -> str:

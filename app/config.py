@@ -30,11 +30,12 @@ class Settings(BaseSettings):
     chat_model: str = "gpt-5-mini"
     embedding_model: str = "text-embedding-3-small"
     embedding_dimensions: int = 512
-    rag_top_k: int = 5
-    rag_min_score: float = 0.18
-    max_context_chars: int = 14_000
+    rag_top_k: int = 3
+    rag_min_score: float = 0.32
+    max_context_chars: int = 6_000
     chat_rate_limit_per_minute: int = 20
     mock_llm: bool = False
+    log_user_messages: bool = False
 
     @field_validator("frontend_origins", mode="before")
     @classmethod
@@ -42,6 +43,11 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
+
+    @field_validator("openai_base_url", mode="before")
+    @classmethod
+    def empty_base_url_is_default(cls, value: object) -> object:
+        return None if value == "" else value
 
     @property
     def database_file(self) -> Path:
