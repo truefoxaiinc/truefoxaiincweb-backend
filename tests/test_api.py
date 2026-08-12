@@ -80,3 +80,18 @@ def test_website_parser_indexes_only_main_content():
     assert "Repeated navigation" not in content
     assert "Repeated footer" not in content
     assert "secret" not in content
+
+
+def test_cors_allows_apex_www_and_admin_headers(clean_database):
+    for origin in ("https://truefoxaiinc.com", "https://www.truefoxaiinc.com"):
+        response = clean_database.options(
+            "/api/v1/admin/login",
+            headers={
+                "Origin": origin,
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type,authorization",
+            },
+        )
+        assert response.status_code == 200
+        assert response.headers["access-control-allow-origin"] == origin
+        assert "authorization" in response.headers["access-control-allow-headers"].lower()

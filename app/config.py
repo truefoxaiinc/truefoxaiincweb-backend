@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import urlparse
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -50,6 +51,20 @@ class Settings(BaseSettings):
     @property
     def session_secret(self) -> str:
         return self.admin_session_secret or self.admin_password
+
+    @property
+    def allowed_frontend_origins(self) -> list[str]:
+        origins = {origin.rstrip("/") for origin in self.frontend_origins}
+        site = self.company_site_url.rstrip("/")
+        origins.add(site)
+        parsed = urlparse(site)
+        if parsed.scheme and parsed.hostname:
+            hostname = parsed.hostname.removeprefix("www.")
+            origins.add(f"{parsed.scheme}://{hostname}")
+            origins.add(f"{parsed.scheme}://www.{hostname}")
+        if self.app_env != "production":
+            origins.update({"http://localhost:3000", "http://127.0.0.1:3000"})
+        return sorted(origins)
 
 
 @lru_cache
