@@ -41,6 +41,14 @@ def test_upload_rejects_unsupported_type(clean_database):
     assert response.status_code == 422
 
 
+def test_small_talk_is_natural_and_skips_company_sources(clean_database):
+    response = clean_database.post("/api/v1/chat", json={"message": "Hi, how are you?"})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["citations"] == []
+    assert len(payload["answer"].split()) < 50
+
+
 def test_admin_crud_public_content_and_application(clean_database):
     login = clean_database.post("/api/v1/admin/login", json={"username": "admin@example.com", "password": "test-password"})
     assert login.status_code == 200

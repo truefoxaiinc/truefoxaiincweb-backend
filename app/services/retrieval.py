@@ -29,6 +29,7 @@ async def retrieve(query: str) -> tuple[list[dict[str, object]], list[Citation]]
     ranked.sort(key=lambda item: item[0], reverse=True)
     matches: list[dict[str, object]] = []
     citations: list[Citation] = []
+    cited_documents: set[str] = set()
     used_chars = 0
     for score, chunk in ranked[: settings.rag_top_k]:
         content = str(chunk["content"])
@@ -36,11 +37,13 @@ async def retrieve(query: str) -> tuple[list[dict[str, object]], list[Citation]]
             content = content[: max(0, settings.max_context_chars - used_chars)]
         if not content:
             break
-        citation = Citation(
-            document_id=str(chunk["document_id"]), title=str(chunk["title"]), source=str(chunk["source"]),
-            chunk_id=str(chunk["id"]), score=round(score, 4), excerpt=content[:240],
-        )
         matches.append({**chunk, "content": content, "score": score})
-        citations.append(citation)
+        document_id = str(chunk["document_id"])
+        if document_id not in cited_documents and len(citations) < 3:
+            citations.append(Citation(
+                document_id=document_id, title=str(chunk["title"]), source=str(chunk["source"]),
+                chunk_id=str(chunk["id"]), score=round(score, 4), excerpt=content[:240],
+            ))
+            cited_documents.add(document_id)
         used_chars += len(content)
     return matches, citations
