@@ -10,7 +10,9 @@ from app.services.retrieval import retrieve
 async def chat(message: str, conversation_id: str | None) -> ChatResponse:
     identifier = ensure_conversation(conversation_id)
     history = recent_messages(identifier)
-    matches, citations = await retrieve(message)
+    previous_user = next((item["content"] for item in reversed(history) if item["role"] == "user"), "")
+    retrieval_query = f"{previous_user}\n{message}" if previous_user else message
+    matches, citations = await retrieve(retrieval_query)
     save_message(identifier, "user", message)
     answer = await LLMService().answer(message, history, [item["content"] for item in matches])
     citation_data = [item.model_dump() for item in citations]
@@ -21,7 +23,9 @@ async def chat(message: str, conversation_id: str | None) -> ChatResponse:
 async def stream_chat(message: str, conversation_id: str | None) -> AsyncIterator[str]:
     identifier = ensure_conversation(conversation_id)
     history = recent_messages(identifier)
-    matches, citations = await retrieve(message)
+    previous_user = next((item["content"] for item in reversed(history) if item["role"] == "user"), "")
+    retrieval_query = f"{previous_user}\n{message}" if previous_user else message
+    matches, citations = await retrieve(retrieval_query)
     save_message(identifier, "user", message)
     citation_data = [item.model_dump() for item in citations]
     yield _event("meta", {"conversation_id": identifier, "citations": citation_data})

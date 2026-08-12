@@ -95,3 +95,18 @@ def test_cors_allows_apex_www_and_admin_headers(clean_database):
         assert response.status_code == 200
         assert response.headers["access-control-allow-origin"] == origin
         assert "authorization" in response.headers["access-control-allow-headers"].lower()
+
+
+def test_admin_session_can_manage_knowledge_and_natural_service_query(clean_database):
+    login = clean_database.post("/api/v1/admin/login", json={"username": "admin@example.com", "password": "test-password"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    created = clean_database.post(
+        "/api/v1/knowledge/text",
+        headers=headers,
+        json={"title": "Company services", "source": "/services", "text": "Truefox AI provides computer vision, private AI assistants, agentic automation, biometric intelligence, IoT and edge AI, data and machine learning, web, mobile, and cloud engineering services."},
+    )
+    assert created.status_code == 201
+    assert clean_database.get("/api/v1/knowledge", headers=headers).status_code == 200
+    chat = clean_database.post("/api/v1/chat", json={"message": "what service you are providing"})
+    assert chat.status_code == 200
+    assert chat.json()["citations"][0]["source"] == "/services"

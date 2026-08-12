@@ -1,4 +1,5 @@
 import math
+import re
 
 from app.config import get_settings
 from app.schemas import Citation
@@ -17,9 +18,13 @@ async def retrieve(query: str) -> tuple[list[dict[str, object]], list[Citation]]
     settings = get_settings()
     query_embedding = await EmbeddingService().embed_one(query)
     ranked: list[tuple[float, dict[str, object]]] = []
+    query_terms = set(re.findall(r"[a-z0-9]+", query.lower())) - {"a", "an", "and", "are", "do", "for", "i", "is", "me", "of", "the", "to", "what", "you", "your"}
     for chunk in all_chunks():
-        score = cosine(query_embedding, chunk["embedding"])
-        if score >= settings.rag_min_score:
+        semantic = cosine(query_embedding, chunk["embedding"])
+        text_terms = set(re.findall(r"[a-z0-9]+", f"{chunk['title']} {chunk['content']}".lower()))
+        lexical = len(query_terms & text_terms) / max(1, len(query_terms))
+        score = semantic * 0.72 + lexical * 0.28
+        if semantic >= settings.rag_min_score or lexical >= 0.2:
             ranked.append((score, chunk))
     ranked.sort(key=lambda item: item[0], reverse=True)
     matches: list[dict[str, object]] = []
