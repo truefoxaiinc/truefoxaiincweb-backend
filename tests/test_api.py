@@ -1,3 +1,8 @@
+import jwt
+
+from app.config import get_settings
+
+
 def test_health(clean_database):
     response = clean_database.get("/health")
     assert response.status_code == 200
@@ -39,7 +44,20 @@ def test_upload_rejects_unsupported_type(clean_database):
 def test_admin_crud_public_content_and_application(clean_database):
     login = clean_database.post("/api/v1/admin/login", json={"username": "admin@example.com", "password": "test-password"})
     assert login.status_code == 200
-    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    token = login.json()["access_token"]
+    assert login.json()["token_type"] == "bearer"
+    assert len(token.split(".")) == 3
+    settings = get_settings()
+    claims = jwt.decode(
+        token,
+        settings.session_secret,
+        algorithms=["HS256"],
+        audience=settings.admin_jwt_audience,
+        issuer=settings.admin_jwt_issuer,
+    )
+    assert claims["sub"] == "admin@example.com"
+    assert {"iat", "exp", "jti"} <= claims.keys()
+    headers = {"Authorization": f"Bearer {token}"}
     created = clean_database.post(
         "/api/v1/admin/data",
         headers=headers,

@@ -10,7 +10,8 @@ dependencies = [
   "pydantic-settings>=2.8,<3",
   "python-multipart>=0.0.20,<1",
   "pypdf>=5.4,<7",
-  "httpx>=0.28,<1"
+  "httpx>=0.28,<1",
+  "PyJWT>=2.10,<3"
 ]
 
 [project.optional-dependencies]
