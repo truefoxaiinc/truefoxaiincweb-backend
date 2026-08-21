@@ -2,6 +2,7 @@ import logging
 import re
 from asyncio import sleep
 from collections.abc import AsyncIterator
+from enum import StrEnum
 
 from openai import (
     APIConnectionError,
@@ -19,6 +20,13 @@ from app.services.intent import Intent
 
 logger = logging.getLogger(__name__)
 TRANSIENT_ERRORS = (RateLimitError, APITimeoutError, APIConnectionError)
+
+
+class FallbackReason(StrEnum):
+    NO_CONTEXT = "no_context"
+    LLM_NOT_CONFIGURED = "llm_not_configured"
+    PROVIDER_ERROR = "provider_error"
+    EMPTY_OUTPUT = "empty_output"
 
 SYSTEM_PROMPT = """You are the official Truefox AI website assistant.
 
@@ -66,6 +74,10 @@ class LLMService:
             return "I found relevant Truefox AI information, but I'm temporarily unable to generate a reliable answer. Please try again shortly."
         return "I don't have verified Truefox AI information for that yet. You can ask about our services, products, careers, or contact options."
 
+    def _log_fallback(self, reason: FallbackReason, *, conversation_id: str, history_count: int, context_count: int, error: OpenAIError | None = None) -> None:
+        response = getattr(error, "response", None) if error else None
+        logger.warning("llm_fallback reason=%s conversation_id=%s model=%s history_count=%d context_count=%d provider_error_type=%s provider_status=%s provider_request_id=%s", reason, conversation_id, self.settings.chat_model, history_count, context_count, type(error).__name__ if error else "none", getattr(error, "status_code", None) or getattr(response, "status_code", None) or "none", getattr(error, "request_id", None) or (response.headers.get("x-request-id") if response is not None else None) or "none")
+
     def _input(self, question: str, history: list[dict[str, str]], contexts: list[str]) -> list[dict[str, str]]:
         context = "\n\n---\n\n".join(contexts)
         messages = [{"role": item["role"], "content": item["content"]} for item in history[-6:]]
@@ -102,28 +114,29 @@ class LLMService:
                 self._log_error(error, operation="responses.create", attempt=attempt)
                 raise
 
-    async def answer(self, question: str, history: list[dict[str, str]], contexts: list[str], *, intent: Intent, entity: str | None) -> str:
+    async def answer(self, question: str, history: list[dict[str, str]], contexts: list[str], *, intent: Intent, entity: str | None, conversation_id: str = "unknown") -> str:
         deterministic = self.deterministic_reply(question, intent, entity)
         if deterministic:
             return deterministic
         if not contexts:
-            logger.info("generation_without_knowledge intent=%s entity=%s", intent, entity or "none")
+            self._log_fallback(FallbackReason.NO_CONTEXT, conversation_id=conversation_id, history_count=len(history), context_count=0)
             return self.safe_fallback(False)
         if not self.client:
-            logger.warning("llm_fallback reason=not_configured intent=%s", intent)
+            self._log_fallback(FallbackReason.LLM_NOT_CONFIGURED, conversation_id=conversation_id, history_count=len(history), context_count=len(contexts))
             return self.safe_fallback(True)
         try:
             response = await self._create_response(instructions=SYSTEM_PROMPT, input_messages=self._input(question, history, contexts), max_output_tokens=450)
             answer = response.output_text.strip()
             if not answer:
-                logger.warning("llm_fallback reason=empty_response intent=%s", intent)
+                self._log_fallback(FallbackReason.EMPTY_OUTPUT, conversation_id=conversation_id, history_count=len(history), context_count=len(contexts))
                 return self.safe_fallback(True)
             return re.sub(r"\s*\[\d+\]", "", answer).strip()
-        except OpenAIError:
+        except OpenAIError as error:
+            self._log_fallback(FallbackReason.PROVIDER_ERROR, conversation_id=conversation_id, history_count=len(history), context_count=len(contexts), error=error)
             return self.safe_fallback(True)
 
-    async def stream(self, question: str, history: list[dict[str, str]], contexts: list[str], *, intent: Intent, entity: str | None) -> AsyncIterator[str]:
-        answer = await self.answer(question, history, contexts, intent=intent, entity=entity)
+    async def stream(self, question: str, history: list[dict[str, str]], contexts: list[str], *, intent: Intent, entity: str | None, conversation_id: str = "unknown") -> AsyncIterator[str]:
+        answer = await self.answer(question, history, contexts, intent=intent, entity=entity, conversation_id=conversation_id)
         yield answer
 
 

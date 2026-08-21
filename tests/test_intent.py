@@ -47,3 +47,15 @@ def test_standalone_query_does_not_leak_history():
     result = resolve_query("Products?", history)
     assert result.retrieval_query == "Products?"
     assert result.used_context is False
+
+
+def test_confirmation_uses_assistant_proposed_subject():
+    history = [{"role": "assistant", "content": "Would you like workflow examples for our AI Agents?"}]
+    result = resolve_query("Yes please", history)
+    assert result.used_context is True
+    assert result.retrieval_query == "Yes please about AI Agents"
+
+
+@pytest.mark.parametrize("query", ["sales agent", "have a discussion", "talk to someone", "schedule a call", "book a meeting", "contact the team"])
+def test_sales_discussion_language_is_contact_intent(query):
+    assert classify_intent(query).intent == Intent.CONTACT

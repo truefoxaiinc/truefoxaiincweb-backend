@@ -26,9 +26,14 @@ def resolve_query(message: str, history: list[dict[str, str]]) -> ResolvedQuery:
 
 
 def _recent_subject(history: list[dict[str, str]]) -> str | None:
-    for item in reversed(history[-8:]):
+    recent = history[-8:]
+    for item in reversed(recent):
         if item.get("role") != "user":
             continue
+        entity = detect_entity(item.get("content", ""))
+        if entity:
+            return entity
+    for item in reversed(recent):
         entity = detect_entity(item.get("content", ""))
         if entity:
             return entity
@@ -38,6 +43,7 @@ def _recent_subject(history: list[dict[str, str]]) -> str | None:
             Intent.SERVICES: "Truefox AI services",
             Intent.CAREERS: "Truefox AI careers",
             Intent.CONTACT: "Truefox AI contact options",
+            Intent.DEMO: "Truefox AI demonstrations",
         }
         if intent.intent in subjects:
             return subjects[intent.intent]

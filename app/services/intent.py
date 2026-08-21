@@ -69,6 +69,8 @@ def classify_intent(text: str) -> QueryIntent:
         return QueryIntent(Intent.CAREERS, confidence=0.95)
     if re.search(r"\b(contact|email|phone|address|location|office|reach)\b", query):
         return QueryIntent(Intent.CONTACT, confidence=0.95)
+    if re.search(r"\b(sales agent|have a discussion|talk to someone|schedule a call|book a meeting|contact the team)\b", query):
+        return QueryIntent(Intent.CONTACT, confidence=0.95)
     if re.search(r"\b(demo|demonstration|book a demo|schedule)\b", query):
         return QueryIntent(Intent.DEMO, confidence=0.95)
     if re.search(r"\b(products?|apps?)\b", query):
@@ -84,7 +86,8 @@ def classify_intent(text: str) -> QueryIntent:
 
 def _depends_on_context(query: str) -> bool:
     return bool(re.fullmatch(
-        r"(?:tell me more|more|what about (?:that|it)|how does (?:that|it) work|how it works|"
+        r"(?:yes|yes please|sure|please do|i would like that|show me|show me examples|i would like to see an example|i like to see example of workflow|"
+        r"tell me more|more|what about (?:that|it)|how does (?:that|it) work|how it works|"
         r"what are (?:its|the) features|features|pricing|price|is it available(?: in [a-z ]+)?|"
         r"what technologies do you use for (?:that|it)|availability)[?.! ]*",
         query,

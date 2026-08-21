@@ -26,7 +26,7 @@ async def chat(message: str, conversation_id: str | None) -> ChatResponse:
     identifier, history, resolved, matches, citations = await _prepare(message, conversation_id)
     save_message(identifier, "user", message)
     relevant_history = history[-6:] if resolved.used_context or resolved.intent == Intent.SMALL_TALK else []
-    answer = await LLMService().answer(message, relevant_history, [str(item["content"]) for item in matches], intent=resolved.intent, entity=resolved.entity)
+    answer = await LLMService().answer(resolved.retrieval_query, relevant_history, [str(item["content"]) for item in matches], intent=resolved.intent, entity=resolved.entity, conversation_id=identifier)
     citation_data = [item.model_dump() for item in citations]
     save_message(identifier, "assistant", answer, citation_data)
     logger.info("chat_completed intent=%s entity=%s context_chunks=%d contextual=%s", resolved.intent, resolved.entity or "none", len(matches), resolved.used_context)
@@ -40,7 +40,7 @@ async def stream_chat(message: str, conversation_id: str | None) -> AsyncIterato
     yield _event("meta", {"conversation_id": identifier, "citations": citation_data})
     pieces: list[str] = []
     relevant_history = history[-6:] if resolved.used_context or resolved.intent == Intent.SMALL_TALK else []
-    async for delta in LLMService().stream(message, relevant_history, [str(item["content"]) for item in matches], intent=resolved.intent, entity=resolved.entity):
+    async for delta in LLMService().stream(resolved.retrieval_query, relevant_history, [str(item["content"]) for item in matches], intent=resolved.intent, entity=resolved.entity, conversation_id=identifier):
         pieces.append(delta)
         yield _event("delta", {"text": delta})
     save_message(identifier, "assistant", "".join(pieces).strip(), citation_data)
