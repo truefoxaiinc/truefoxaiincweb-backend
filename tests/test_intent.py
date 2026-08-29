@@ -2,6 +2,7 @@ import pytest
 
 from app.services.intent import Intent, classify_intent
 from app.services.query_resolver import resolve_query
+from app.services.website_sync import classify_path
 
 
 @pytest.mark.parametrize(
@@ -56,6 +57,25 @@ def test_confirmation_uses_assistant_proposed_subject():
     assert result.retrieval_query == "Yes please about AI Agents"
 
 
+@pytest.mark.parametrize(
+    ("assistant_message", "follow_up", "subject"),
+    [
+        ("Would you like examples of workflows for our Workflow Agents or Agentic Automation?", "Yes please", "Agentic Automation"),
+        ("Would you like examples of workflows for Agentic Automation?", "I like to see example of workflow.", "Agentic Automation"),
+    ],
+)
+def test_workflow_follow_up_uses_subject_from_assistant(assistant_message, follow_up, subject):
+    result = resolve_query(follow_up, [{"role": "assistant", "content": assistant_message}])
+    assert result.used_context is True
+    assert result.entity == subject
+    assert result.retrieval_query.endswith(f"about {subject}")
+
+
 @pytest.mark.parametrize("query", ["sales agent", "have a discussion", "talk to someone", "schedule a call", "book a meeting", "contact the team"])
 def test_sales_discussion_language_is_contact_intent(query):
     assert classify_intent(query).intent == Intent.CONTACT
+
+
+@pytest.mark.parametrize("path", ["/agentic-automation", "/private-ai-assistants", "/iot-edge-ai"])
+def test_root_level_capability_pages_are_synced_as_services(path):
+    assert classify_path(path) == ("service", "services")

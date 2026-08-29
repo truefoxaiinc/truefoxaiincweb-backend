@@ -32,6 +32,16 @@ KNOWN_ENTITIES = {
     "automation": "Automation",
     "ai agents": "AI Agents",
     "agentic ai": "AI Agents",
+    "workflow agent": "Workflow Agents",
+    "workflow agents": "Workflow Agents",
+    "agentic automation": "Agentic Automation",
+    "private ai": "Private AI Assistants",
+    "private ai assistant": "Private AI Assistants",
+    "private ai assistants": "Private AI Assistants",
+    "smart security": "AI Smart Security",
+    "iot edge ai": "IoT & Edge AI",
+    "edge ai": "IoT & Edge AI",
+    "custom ai": "Custom AI & ML",
 }
 
 

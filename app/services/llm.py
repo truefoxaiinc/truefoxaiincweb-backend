@@ -69,9 +69,13 @@ class LLMService:
         return None
 
     @staticmethod
-    def safe_fallback(has_context: bool) -> str:
+    def safe_fallback(has_context: bool, intent: Intent = Intent.UNKNOWN) -> str:
         if has_context:
             return "I found relevant Truefox AI information, but I'm temporarily unable to generate a reliable answer. Please try again shortly."
+        if intent in {Intent.CONTACT, Intent.DEMO}:
+            return "I’d be happy to help you start a conversation with the Truefox AI team. Please share a short overview of what you need, where the system will run, the outcome you want, and your preferred contact method or timezone."
+        if intent in {Intent.SERVICES, Intent.SERVICE_DETAIL, Intent.PRODUCTS, Intent.PRODUCT_DETAIL}:
+            return "I can help with Truefox AI services, products, workflow automation, private AI, computer vision, edge AI, and custom AI and ML. Tell me the business problem or workflow you want to improve, and I’ll guide you to the most relevant option."
         return "I don't have verified Truefox AI information for that yet. You can ask about our services, products, careers, or contact options."
 
     def _log_fallback(self, reason: FallbackReason, *, conversation_id: str, history_count: int, context_count: int, error: OpenAIError | None = None) -> None:
@@ -103,6 +107,7 @@ class LLMService:
                     instructions=instructions,
                     input=input_messages,
                     store=False,
+                    reasoning={"effort": "low"},
                     max_output_tokens=max_output_tokens,
                 )
             except TRANSIENT_ERRORS as error:
@@ -120,14 +125,18 @@ class LLMService:
             return deterministic
         if not contexts:
             self._log_fallback(FallbackReason.NO_CONTEXT, conversation_id=conversation_id, history_count=len(history), context_count=0)
-            return self.safe_fallback(False)
+            return self.safe_fallback(False, intent)
         if not self.client:
             self._log_fallback(FallbackReason.LLM_NOT_CONFIGURED, conversation_id=conversation_id, history_count=len(history), context_count=len(contexts))
             return self.safe_fallback(True)
         try:
-            response = await self._create_response(instructions=SYSTEM_PROMPT, input_messages=self._input(question, history, contexts), max_output_tokens=450)
-            answer = response.output_text.strip()
+            response = await self._create_response(instructions=SYSTEM_PROMPT, input_messages=self._input(question, history, contexts), max_output_tokens=2048)
+            answer = (response.output_text or "").strip()
             if not answer:
+                incomplete = getattr(getattr(response, "incomplete_details", None), "reason", None)
+                output_types = [getattr(item, "type", "unknown") for item in getattr(response, "output", [])]
+                usage = getattr(response, "usage", None)
+                logger.warning("llm_empty_output conversation_id=%s model=%s status=%s response_id=%s incomplete_reason=%s output_types=%s input_tokens=%s output_tokens=%s reasoning_tokens=%s total_tokens=%s history_count=%d context_count=%d", conversation_id, self.settings.chat_model, getattr(response, "status", "unknown"), getattr(response, "id", "unknown"), incomplete or "none", output_types, getattr(usage, "input_tokens", "none"), getattr(usage, "output_tokens", "none"), getattr(getattr(usage, "output_tokens_details", None), "reasoning_tokens", "none"), getattr(usage, "total_tokens", "none"), len(history), len(contexts))
                 self._log_fallback(FallbackReason.EMPTY_OUTPUT, conversation_id=conversation_id, history_count=len(history), context_count=len(contexts))
                 return self.safe_fallback(True)
             return re.sub(r"\s*\[\d+\]", "", answer).strip()
@@ -148,8 +157,8 @@ async def check_llm_connection() -> dict[str, object]:
         response = await service._create_response(
             instructions="Reply with exactly OK.",
             input_messages=[{"role": "user", "content": "Connection check"}],
-            max_output_tokens=8,
+            max_output_tokens=128,
         )
-        return {"ok": bool(response.output_text.strip()), "provider": "openai", "model": service.settings.chat_model}
+        return {"ok": bool((response.output_text or "").strip()), "provider": "openai", "model": service.settings.chat_model}
     except OpenAIError as error:
         return {"ok": False, "provider": "openai", "model": service.settings.chat_model, "error_type": type(error).__name__}

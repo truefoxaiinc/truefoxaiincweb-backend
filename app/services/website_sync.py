@@ -81,7 +81,18 @@ def _allowed_base(base_url: str) -> str:
     return base_url.rstrip("/")
 
 
+SERVICE_PATHS = {
+    "/ai-smart-security",
+    "/private-ai-assistants",
+    "/agentic-automation",
+    "/iot-edge-ai",
+    "/custom-ai-ml",
+}
+
+
 def classify_path(path: str) -> tuple[str, str]:
+    if path.rstrip("/") in SERVICE_PATHS:
+        return "service", "services"
     category = next((item for item in ("products", "services", "careers", "contact", "industries", "solutions") if item in path), "company")
     document_type = {"products": "product", "services": "service", "careers": "career", "contact": "contact"}.get(category, category)
     return document_type, category

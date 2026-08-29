@@ -18,12 +18,18 @@ class FakeResponses:
         outcome = self.outcomes.pop(0)
         if isinstance(outcome, Exception):
             raise outcome
-        return SimpleNamespace(output_text=outcome)
+        return outcome
 
 
 class FakeClient:
     def __init__(self, outcomes):
         self.responses = FakeResponses(outcomes)
+
+
+def response(text, **kwargs):
+    values = {"output_text": text, "id": "resp_test", "status": "completed", "output": [], "usage": None, "incomplete_details": None}
+    values.update(kwargs)
+    return SimpleNamespace(**values)
 
 
 @pytest.mark.asyncio
@@ -46,9 +52,21 @@ async def test_deterministic_small_talk_works_without_provider():
 
 
 @pytest.mark.asyncio
+async def test_sales_request_without_context_receives_a_useful_contact_reply():
+    service = LLMService()
+    service.client = None
+    answer = await service.answer(
+        "I am from Ontario and need a sales agent. Can we have a discussion?",
+        [], [], intent=Intent.CONTACT, entity=None,
+    )
+    assert "start a conversation" in answer.lower()
+    assert "temporarily unable" not in answer
+
+
+@pytest.mark.asyncio
 async def test_successful_provider_answer_is_returned_with_grounding():
     service = LLMService()
-    service.client = FakeClient(["Truefox AI builds verified web applications."])
+    service.client = FakeClient([response("Truefox AI builds verified web applications.")])
     answer = await service.answer(
         "I need a website for my company", [], ["# Web Development\nTruefox AI builds web applications."],
         intent=Intent.UNKNOWN, entity=None,
@@ -57,13 +75,26 @@ async def test_successful_provider_answer_is_returned_with_grounding():
     sent = service.client.responses.calls[0]["input"][0]["content"]
     assert "APPROVED CONTEXT" in sent
     assert "Web Development" in sent
+    assert service.client.responses.calls[0]["max_output_tokens"] == 2048
+    assert service.client.responses.calls[0]["reasoning"] == {"effort": "low"}
+
+
+@pytest.mark.asyncio
+async def test_empty_output_logs_safe_response_diagnostics(caplog):
+    service = LLMService()
+    service.client = FakeClient([response(None, status="incomplete", incomplete_details=SimpleNamespace(reason="max_output_tokens"), output=[SimpleNamespace(type="reasoning")], usage=SimpleNamespace(input_tokens=10, output_tokens=2, total_tokens=12, output_tokens_details=SimpleNamespace(reasoning_tokens=2)))])
+    answer = await service.answer("Services?", [{"role": "user", "content": "private history"}], ["private context"], intent=Intent.SERVICES, entity=None, conversation_id="conv-test")
+    assert "temporarily unable" in answer
+    assert "incomplete_reason=max_output_tokens" in caplog.text
+    assert "private history" not in caplog.text
+    assert "private context" not in caplog.text
 
 
 @pytest.mark.asyncio
 async def test_timeout_is_retried_once_then_succeeds():
     timeout = APITimeoutError(request=httpx.Request("POST", "https://api.openai.com/v1/responses"))
     service = LLMService()
-    service.client = FakeClient([timeout, "Recovered answer"])
+    service.client = FakeClient([timeout, response("Recovered answer")])
     answer = await service.answer("Services?", [], ["Verified service context"], intent=Intent.SERVICES, entity=None)
     assert answer == "Recovered answer"
     assert len(service.client.responses.calls) == 2
