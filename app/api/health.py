@@ -14,14 +14,14 @@ def health_check() -> dict[str, object]:
         "status": "ok" if database["status"] == "ok" else "degraded",
         "database": database,
         "llm": {
-            "configured": bool(settings.openai_api_key) and not settings.mock_llm,
-            "provider": "openai",
+            "configured": bool(settings.openrouter_api_key) and not settings.mock_llm,
+            "provider": "openrouter",
             "model": settings.chat_model,
             "mock_mode": settings.mock_llm,
         },
         "embeddings": {
-            "configured": bool(settings.openai_api_key) and not settings.mock_llm,
-            "provider": "openai",
+            "configured": bool(settings.openrouter_api_key) and not settings.mock_llm,
+            "provider": "openrouter",
             "model": settings.embedding_model,
         },
         "knowledge": {

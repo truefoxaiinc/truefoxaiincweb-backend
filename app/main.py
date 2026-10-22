@@ -20,10 +20,10 @@ async def lifespan(_: FastAPI):
     runtime = get_settings()
     if runtime.mock_llm:
         logger.warning("startup_llm_unavailable reason=mock_mode model=%s", runtime.chat_model)
-    elif not runtime.openai_api_key:
-        logger.warning("startup_llm_unavailable reason=missing_api_key model=%s", runtime.chat_model)
+    elif not runtime.openrouter_api_key:
+        logger.warning("startup_llm_unavailable reason=missing_openrouter_api_key model=%s", runtime.chat_model)
     else:
-        logger.info("startup_llm_configured provider=openai model=%s embedding_model=%s base_url_custom=%s", runtime.chat_model, runtime.embedding_model, bool(runtime.openai_base_url))
+        logger.info("startup_llm_configured provider=openrouter model=%s embedding_model=%s", runtime.chat_model, runtime.embedding_model)
     yield
 
 

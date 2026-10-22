@@ -2,8 +2,9 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
-from openai import APITimeoutError
+from openai import APITimeoutError, RateLimitError
 
+from app.services.embeddings import EmbeddingService
 from app.services.intent import Intent
 from app.services.llm import LLMService
 
@@ -24,6 +25,27 @@ class FakeResponses:
 class FakeClient:
     def __init__(self, outcomes):
         self.responses = FakeResponses(outcomes)
+
+
+class FakeEmbeddings:
+    def __init__(self, error):
+        self.error = error
+
+    async def create(self, **kwargs):
+        raise self.error
+
+
+def rate_limit_error():
+    body = {
+        "error": {
+            "message": "customer request text and sk-test-sensitive-key",
+            "type": "insufficient_quota",
+            "code": "insufficient_quota",
+        }
+    }
+    request = httpx.Request("POST", "https://openrouter.ai/api/v1/responses", headers={"Authorization": "Bearer sk-test-sensitive-key"})
+    response = httpx.Response(429, request=request, json=body)
+    return RateLimitError("provider error", response=response, body=body)
 
 
 def response(text, **kwargs):
@@ -92,7 +114,7 @@ async def test_empty_output_logs_safe_response_diagnostics(caplog):
 
 @pytest.mark.asyncio
 async def test_timeout_is_retried_once_then_succeeds():
-    timeout = APITimeoutError(request=httpx.Request("POST", "https://api.openai.com/v1/responses"))
+    timeout = APITimeoutError(request=httpx.Request("POST", "https://openrouter.ai/api/v1/responses"))
     service = LLMService()
     service.client = FakeClient([timeout, response("Recovered answer")])
     answer = await service.answer("Services?", [], ["Verified service context"], intent=Intent.SERVICES, entity=None)
@@ -102,9 +124,30 @@ async def test_timeout_is_retried_once_then_succeeds():
 
 @pytest.mark.asyncio
 async def test_repeated_timeout_returns_safe_fallback():
-    request = httpx.Request("POST", "https://api.openai.com/v1/responses")
+    request = httpx.Request("POST", "https://openrouter.ai/api/v1/responses")
     service = LLMService()
     service.client = FakeClient([APITimeoutError(request=request), APITimeoutError(request=request)])
     answer = await service.answer("Products?", [], ["Verified product context"], intent=Intent.PRODUCTS, entity=None)
     assert "temporarily unable" in answer
     assert len(service.client.responses.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_logs_safe_provider_code_without_sensitive_details(caplog):
+    first_error, final_error = rate_limit_error(), rate_limit_error()
+    service = LLMService()
+    service.client = FakeClient([first_error, final_error])
+    await service.answer(
+        "customer request text", [], ["private customer context"],
+        intent=Intent.UNKNOWN, entity=None, conversation_id="conversation-private",
+    )
+
+    embedding_service = EmbeddingService()
+    embedding_service.client = SimpleNamespace(embeddings=FakeEmbeddings(rate_limit_error()))
+    await embedding_service.embed_many(["private customer text"])
+
+    assert "error_code=insufficient_quota" in caplog.text
+    assert "sk-test-sensitive-key" not in caplog.text
+    assert "customer request text" not in caplog.text
+    assert "private customer context" not in caplog.text
+    assert "private customer text" not in caplog.text

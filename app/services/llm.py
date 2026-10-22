@@ -20,6 +20,16 @@ from app.services.intent import Intent
 
 logger = logging.getLogger(__name__)
 TRANSIENT_ERRORS = (RateLimitError, APITimeoutError, APIConnectionError)
+SAFE_PROVIDER_CODE = re.compile(r"[A-Za-z0-9_.-]{1,64}\Z")
+
+
+def _safe_provider_error_code(error: OpenAIError) -> str:
+    code = getattr(error, "code", None)
+    if not isinstance(code, str):
+        body = getattr(error, "body", None)
+        detail = body.get("error") if isinstance(body, dict) else None
+        code = detail.get("code") if isinstance(detail, dict) else None
+    return code if isinstance(code, str) and SAFE_PROVIDER_CODE.fullmatch(code) else "none"
 
 
 class FallbackReason(StrEnum):
@@ -51,7 +61,7 @@ Style rules:
 class LLMService:
     def __init__(self) -> None:
         self.settings = get_settings()
-        self.client = AsyncOpenAI(api_key=self.settings.openai_api_key, base_url=self.settings.openai_base_url) if self.settings.openai_api_key and not self.settings.mock_llm else None
+        self.client = AsyncOpenAI(api_key=self.settings.openrouter_api_key, base_url=self.settings.openrouter_base_url) if self.settings.openrouter_api_key and not self.settings.mock_llm else None
 
     @staticmethod
     def deterministic_reply(question: str, intent: Intent, entity: str | None) -> str | None:
@@ -80,7 +90,7 @@ class LLMService:
 
     def _log_fallback(self, reason: FallbackReason, *, conversation_id: str, history_count: int, context_count: int, error: OpenAIError | None = None) -> None:
         response = getattr(error, "response", None) if error else None
-        logger.warning("llm_fallback reason=%s conversation_id=%s model=%s history_count=%d context_count=%d provider_error_type=%s provider_status=%s provider_request_id=%s", reason, conversation_id, self.settings.chat_model, history_count, context_count, type(error).__name__ if error else "none", getattr(error, "status_code", None) or getattr(response, "status_code", None) or "none", getattr(error, "request_id", None) or (response.headers.get("x-request-id") if response is not None else None) or "none")
+        logger.warning("llm_fallback reason=%s conversation_id=%s model=%s history_count=%d context_count=%d provider_error_type=%s provider_status=%s provider_error_code=%s provider_request_id=%s", reason, conversation_id, self.settings.chat_model, history_count, context_count, type(error).__name__ if error else "none", getattr(error, "status_code", None) or getattr(response, "status_code", None) or "none", _safe_provider_error_code(error) if error else "none", getattr(error, "request_id", None) or (response.headers.get("x-request-id") if response is not None else None) or "none")
 
     def _input(self, question: str, history: list[dict[str, str]], contexts: list[str]) -> list[dict[str, str]]:
         context = "\n\n---\n\n".join(contexts)
@@ -93,8 +103,8 @@ class LLMService:
         status_code = getattr(error, "status_code", None) or getattr(response, "status_code", None)
         request_id = getattr(error, "request_id", None) or (response.headers.get("x-request-id") if response is not None else None)
         logger.error(
-            "provider_request_failed provider=openai operation=%s model=%s error_type=%s status_code=%s request_id=%s attempt=%d",
-            operation, self.settings.chat_model, type(error).__name__, status_code or "none", request_id or "none", attempt,
+            "provider_request_failed provider=openrouter operation=%s model=%s error_type=%s status_code=%s error_code=%s request_id=%s attempt=%d",
+            operation, self.settings.chat_model, type(error).__name__, status_code or "none", _safe_provider_error_code(error), request_id or "none", attempt,
         )
 
     async def _create_response(self, *, instructions: str, input_messages: list[dict[str, str]], max_output_tokens: int):
@@ -152,13 +162,13 @@ class LLMService:
 async def check_llm_connection() -> dict[str, object]:
     service = LLMService()
     if not service.client:
-        return {"ok": False, "provider": "openai", "model": service.settings.chat_model, "error_type": "NotConfigured"}
+        return {"ok": False, "provider": "openrouter", "model": service.settings.chat_model, "error_type": "NotConfigured"}
     try:
         response = await service._create_response(
             instructions="Reply with exactly OK.",
             input_messages=[{"role": "user", "content": "Connection check"}],
             max_output_tokens=128,
         )
-        return {"ok": bool((response.output_text or "").strip()), "provider": "openai", "model": service.settings.chat_model}
+        return {"ok": bool((response.output_text or "").strip()), "provider": "openrouter", "model": service.settings.chat_model}
     except OpenAIError as error:
-        return {"ok": False, "provider": "openai", "model": service.settings.chat_model, "error_type": type(error).__name__}
+        return {"ok": False, "provider": "openrouter", "model": service.settings.chat_model, "error_type": type(error).__name__}

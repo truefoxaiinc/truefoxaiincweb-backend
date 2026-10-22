@@ -28,10 +28,10 @@ class Settings(BaseSettings):
     frontend_origins: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["http://localhost:3000"])
     trusted_proxy_ips: Annotated[list[str], NoDecode] = Field(default_factory=list)
     conversation_capability_ttl_hours: int = Field(default=24, ge=1, le=720)
-    openai_api_key: str = ""
-    openai_base_url: str | None = None
-    chat_model: str = "gpt-5-mini"
-    embedding_model: str = "text-embedding-3-small"
+    openrouter_api_key: str = ""
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    chat_model: str = "openai/gpt-4o"
+    embedding_model: str = "openai/text-embedding-3-small"
     embedding_dimensions: int = 512
     rag_top_k: int = 3
     rag_min_score: float = 0.32
@@ -56,10 +56,10 @@ class Settings(BaseSettings):
             return value
         return [str(ipaddress.ip_network(item, strict=False)) for item in value]
 
-    @field_validator("openai_base_url", mode="before")
+    @field_validator("openrouter_base_url", mode="before")
     @classmethod
-    def empty_base_url_is_default(cls, value: object) -> object:
-        return None if value == "" else value
+    def empty_openrouter_base_url_is_default(cls, value: object) -> object:
+        return "https://openrouter.ai/api/v1" if value == "" else value
 
     @property
     def database_file(self) -> Path:
@@ -67,7 +67,7 @@ class Settings(BaseSettings):
 
     @property
     def llm_ready(self) -> bool:
-        return bool(self.openai_api_key) or self.mock_llm
+        return bool(self.openrouter_api_key) or self.mock_llm
 
     @property
     def session_secret(self) -> str:

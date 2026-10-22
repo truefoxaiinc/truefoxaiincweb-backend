@@ -15,7 +15,7 @@ python -m scripts.migrate_legacy_cms ../data/cms.json
 uvicorn app.main:app --reload --port 8000
 ```
 
-Set `OPENAI_API_KEY` in `.env`. Without it, local deterministic embeddings remain available for development, while company-specific chat requests return a safe provider-unavailable message instead of exposing raw knowledge. Set a strong random `ADMIN_API_KEY` before exposing the service.
+Set `OPENROUTER_API_KEY` in `.env`; the backend connects to `https://openrouter.ai/api/v1` using the OpenAI-compatible Python SDK. Defaults are `openai/gpt-4o` for chat and `openai/text-embedding-3-small` for embeddings. Without the key, local deterministic embeddings remain available for development, while company-specific chat requests return a safe provider-unavailable message instead of exposing raw knowledge. Set a strong random `ADMIN_API_KEY` before exposing the service. Never commit `.env`; rotate any key that has been shared.
 
 The frontend proxies requests through `/api/chat`, using `AI_BACKEND_URL` on the Next.js server. API docs are available at `http://127.0.0.1:8000/docs` in non-production environments.
 

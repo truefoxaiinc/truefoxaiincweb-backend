@@ -7,7 +7,8 @@ def test_health(clean_database):
     response = clean_database.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
-    assert response.json()["llm"]["model"] == "gpt-5-mini"
+    assert response.json()["llm"]["model"] == get_settings().chat_model
+    assert response.json()["llm"]["provider"] == "openrouter"
     assert response.json()["llm"]["mock_mode"] is True
     assert response.json()["knowledge"]["document_count"] == 0
 
