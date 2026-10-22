@@ -1,5 +1,5 @@
-from functools import lru_cache
 import ipaddress
+from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlparse

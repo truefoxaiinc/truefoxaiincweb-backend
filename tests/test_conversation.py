@@ -31,7 +31,8 @@ async def test_follow_up_conversation_keeps_attention_minder_subject(clean_datab
         assert response.status_code == 200
         payload = response.json()
         conversation_id = payload["conversation_id"]
-        capability_token = payload["capability_token"]
+        if payload["capability_token"]:
+            capability_token = payload["capability_token"]
         assert payload["citations"], query
         assert payload["citations"][0]["source"] == source
 

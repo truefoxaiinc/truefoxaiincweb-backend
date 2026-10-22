@@ -9,7 +9,13 @@ from app.schemas import ChatResponse
 from app.services.intent import Intent
 from app.services.llm import LLMService
 from app.services.query_resolver import ResolvedQuery, resolve_query
-from app.services.repository import authorize_conversation, create_conversation, recent_messages, save_message, touch_conversation
+from app.services.repository import (
+    authorize_conversation,
+    create_conversation,
+    recent_messages,
+    save_message,
+    touch_conversation,
+)
 from app.services.retrieval import retrieve
 
 logger = logging.getLogger(__name__)

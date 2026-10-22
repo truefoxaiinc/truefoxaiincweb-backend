@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
 import pytest
@@ -12,8 +13,8 @@ def request(peer: str, forwarded: str = "") -> Request:
     return Request({"type": "http", "method": "POST", "path": "/", "headers": headers, "client": (peer, 1234)})
 
 
-def limiter(monkeypatch, trusted_proxy_ips):
-    settings = SimpleNamespace(chat_rate_limit_per_minute=1, trusted_proxy_ips=trusted_proxy_ips)
+def limiter(monkeypatch, trusted_proxy_ips, limit=1):
+    settings = SimpleNamespace(chat_rate_limit_per_minute=limit, trusted_proxy_ips=trusted_proxy_ips)
     monkeypatch.setattr("app.security.get_settings", lambda: settings)
     return RateLimiter()
 
@@ -39,3 +40,19 @@ def test_trusted_proxy_setting_accepts_explicit_ip_ranges():
 
     settings = Settings(trusted_proxy_ips="10.0.0.1, 192.168.0.0/16")
     assert settings.trusted_proxy_ips == ["10.0.0.1/32", "192.168.0.0/16"]
+
+
+def test_concurrent_requests_cannot_exceed_one_process_limit(monkeypatch):
+    rate_limiter = limiter(monkeypatch, [], limit=5)
+
+    def attempt(_):
+        try:
+            rate_limiter.check(request("198.51.100.20"))
+            return True
+        except HTTPException as error:
+            assert error.status_code == 429
+            return False
+
+    with ThreadPoolExecutor(max_workers=20) as pool:
+        accepted = list(pool.map(attempt, range(50)))
+    assert sum(accepted) == 5

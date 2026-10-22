@@ -1,0 +1,27 @@
+# Example only. Install as a new Apache virtual host after replacing the
+# ServerName and certificate paths. Do not overwrite existing site configs.
+<VirtualHost *:80>
+    ServerName api.example.com
+    Redirect permanent / https://api.example.com/
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName api.example.com
+
+    SSLEngine on
+    SSLCertificateFile /etc/letsencrypt/live/api.example.com/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/api.example.com/privkey.pem
+    SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1
+
+    ProxyRequests Off
+    ProxyPreserveHost On
+    ProxyAddHeaders On
+    RequestHeader set X-Forwarded-Proto "https"
+    RequestHeader set X-Forwarded-Port "443"
+
+    ProxyPass        / http://127.0.0.1:8000/ connectiontimeout=5 timeout=300
+    ProxyPassReverse / http://127.0.0.1:8000/
+
+    ErrorLog ${APACHE_LOG_DIR}/private-ai-backend-error.log
+    CustomLog ${APACHE_LOG_DIR}/private-ai-backend-access.log combined
+</VirtualHost>

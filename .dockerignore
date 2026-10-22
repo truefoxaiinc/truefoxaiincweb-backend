@@ -1,5 +1,16 @@
 .env
+*.env
+.git
+.gitignore
 .venv
 data
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-*
+backups
+tests
+docs
+deploy/.env.production.example
 __pycache__
 .pytest_cache

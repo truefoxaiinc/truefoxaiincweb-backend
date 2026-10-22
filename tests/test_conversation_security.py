@@ -32,11 +32,13 @@ def test_conversation_history_requires_capability_and_returns_generic_errors(cle
 
 def test_followup_requires_the_matching_capability(clean_database):
     payload = start_conversation(clean_database)
+    other_conversation = start_conversation(clean_database)
     request_body = {"message": "Thanks", "conversation_id": payload["conversation_id"]}
 
     unauthorized = clean_database.post("/api/v1/chat", json=request_body)
     cross_user = clean_database.post(
-        "/api/v1/chat", json=request_body, headers={"X-Conversation-Capability": "other-session-token"}
+        "/api/v1/chat", json=request_body,
+        headers={"X-Conversation-Capability": other_conversation["capability_token"]},
     )
     assert unauthorized.status_code == cross_user.status_code == 404
     assert unauthorized.json() == cross_user.json()
@@ -62,6 +64,18 @@ def test_expired_capability_is_rejected(clean_database):
     )
     assert response.status_code == 404
     assert "expired" not in response.text.lower()
+    followup = clean_database.post(
+        "/api/v1/chat",
+        json={"message": "Thanks", "conversation_id": payload["conversation_id"]},
+        headers={"X-Conversation-Capability": payload["capability_token"]},
+    )
+    assert followup.status_code == 404
+    followup = clean_database.post(
+        "/api/v1/chat",
+        json={"message": "Thanks", "conversation_id": payload["conversation_id"]},
+        headers={"X-Conversation-Capability": payload["capability_token"]},
+    )
+    assert followup.status_code == 404
 
 
 def test_only_capability_hash_is_persisted(clean_database):
