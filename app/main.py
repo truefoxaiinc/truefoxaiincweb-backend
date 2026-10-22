@@ -39,7 +39,7 @@ app.add_middleware(
     allow_origins=settings.allowed_frontend_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
-    allow_headers=["Authorization", "Content-Type", "X-Admin-Key"],
+    allow_headers=["Authorization", "Content-Type", "X-Admin-Key", "X-Conversation-Capability"],
 )
 app.include_router(health_router)
 app.include_router(chat_router)

@@ -30,7 +30,10 @@ def test_admin_auth_and_rag_chat(clean_database):
     assert payload["conversation_id"]
     assert payload["citations"][0]["source"] == "/careers"
 
-    history = clean_database.get(f"/api/v1/conversations/{payload['conversation_id']}")
+    history = clean_database.get(
+        f"/api/v1/conversations/{payload['conversation_id']}",
+        headers={"X-Conversation-Capability": payload["capability_token"]},
+    )
     assert history.status_code == 200
     assert [item["role"] for item in history.json()] == ["user", "assistant"]
 
@@ -120,12 +123,13 @@ def test_cors_allows_apex_www_and_admin_headers(clean_database):
             headers={
                 "Origin": origin,
                 "Access-Control-Request-Method": "POST",
-                "Access-Control-Request-Headers": "content-type,authorization",
+                "Access-Control-Request-Headers": "content-type,authorization,x-conversation-capability",
             },
         )
         assert response.status_code == 200
         assert response.headers["access-control-allow-origin"] == origin
         assert "authorization" in response.headers["access-control-allow-headers"].lower()
+        assert "x-conversation-capability" in response.headers["access-control-allow-headers"].lower()
 
 
 def test_admin_session_can_manage_knowledge_and_natural_service_query(clean_database):

@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS chunks (
 CREATE INDEX IF NOT EXISTS idx_chunks_document ON chunks(document_id, position);
 CREATE TABLE IF NOT EXISTS conversations (
   id TEXT PRIMARY KEY,
+  capability_hash TEXT,
+  capability_expires_at REAL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -108,6 +110,11 @@ def migrate() -> None:
         columns = {row[1] for row in connection.execute("PRAGMA table_info(chunks)")}
         if "metadata" not in columns:
             connection.execute("ALTER TABLE chunks ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'")
+        conversation_columns = {row[1] for row in connection.execute("PRAGMA table_info(conversations)")}
+        if "capability_hash" not in conversation_columns:
+            connection.execute("ALTER TABLE conversations ADD COLUMN capability_hash TEXT")
+        if "capability_expires_at" not in conversation_columns:
+            connection.execute("ALTER TABLE conversations ADD COLUMN capability_expires_at REAL")
 
 
 def database_health() -> dict[str, object]:

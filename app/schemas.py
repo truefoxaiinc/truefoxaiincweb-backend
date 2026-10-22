@@ -19,6 +19,7 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     conversation_id: str
+    capability_token: str | None = None
     answer: str
     citations: list[Citation]
 

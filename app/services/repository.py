@@ -1,4 +1,7 @@
 import json
+import hashlib
+import secrets
+import time
 from contextlib import closing
 from uuid import uuid4
 
@@ -55,13 +58,34 @@ def reset_knowledge() -> None:
         connection.execute("DELETE FROM documents")
 
 
-def ensure_conversation(conversation_id: str | None) -> str:
-    identifier = conversation_id or str(uuid4())
+def create_conversation(ttl_hours: int) -> tuple[str, str]:
+    identifier = str(uuid4())
+    capability = secrets.token_urlsafe(32)
+    capability_hash = hashlib.sha256(capability.encode("utf-8")).hexdigest()
     now = utcnow()
     with transaction() as connection:
-        connection.execute("INSERT OR IGNORE INTO conversations(id,created_at,updated_at) VALUES(?,?,?)", (identifier, now, now))
-        connection.execute("UPDATE conversations SET updated_at=? WHERE id=?", (now, identifier))
-    return identifier
+        connection.execute(
+            "INSERT INTO conversations(id,capability_hash,capability_expires_at,created_at,updated_at) VALUES(?,?,?,?,?)",
+            (identifier, capability_hash, time.time() + ttl_hours * 3600, now, now),
+        )
+    return identifier, capability
+
+
+def authorize_conversation(conversation_id: str, capability: str) -> bool:
+    with closing(connect()) as connection:
+        row = connection.execute(
+            "SELECT capability_hash,capability_expires_at FROM conversations WHERE id=?",
+            (conversation_id,),
+        ).fetchone()
+    if not row or not row["capability_hash"] or not row["capability_expires_at"]:
+        return False
+    supplied = hashlib.sha256(capability.encode("utf-8")).hexdigest()
+    return row["capability_expires_at"] > time.time() and secrets.compare_digest(row["capability_hash"], supplied)
+
+
+def touch_conversation(conversation_id: str) -> None:
+    with transaction() as connection:
+        connection.execute("UPDATE conversations SET updated_at=? WHERE id=?", (utcnow(), conversation_id))
 
 
 def save_message(conversation_id: str, role: str, content: str, citations: list[dict[str, object]] | None = None) -> str:

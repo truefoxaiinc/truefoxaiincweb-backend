@@ -14,6 +14,7 @@ async def seed_conversation_knowledge():
 async def test_follow_up_conversation_keeps_attention_minder_subject(clean_database):
     await seed_conversation_knowledge()
     conversation_id = None
+    capability_token = None
     expected = [
         ("What services do you provide?", "/services"),
         ("Products?", "/attention-minder"),
@@ -22,10 +23,15 @@ async def test_follow_up_conversation_keeps_attention_minder_subject(clean_datab
         ("What are its features?", "/attention-minder"),
     ]
     for query, source in expected:
-        response = clean_database.post("/api/v1/chat", json={"message": query, "conversation_id": conversation_id})
+        response = clean_database.post(
+            "/api/v1/chat",
+            json={"message": query, "conversation_id": conversation_id},
+            headers={"X-Conversation-Capability": capability_token} if capability_token else {},
+        )
         assert response.status_code == 200
         payload = response.json()
         conversation_id = payload["conversation_id"]
+        capability_token = payload["capability_token"]
         assert payload["citations"], query
         assert payload["citations"][0]["source"] == source
 

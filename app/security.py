@@ -1,6 +1,8 @@
 import hmac
+import ipaddress
 import time
 from collections import defaultdict, deque
+from threading import Lock
 
 from fastapi import Header, HTTPException, Request, status
 
@@ -28,18 +30,42 @@ def require_knowledge_admin(
 class RateLimiter:
     def __init__(self) -> None:
         self._events: dict[str, deque[float]] = defaultdict(deque)
+        self._lock = Lock()
 
     def check(self, request: Request) -> None:
         settings = get_settings()
-        forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-        key = forwarded or (request.client.host if request.client else "unknown")
-        now = time.monotonic()
-        events = self._events[key]
-        while events and events[0] <= now - 60:
-            events.popleft()
-        if len(events) >= settings.chat_rate_limit_per_minute:
-            raise HTTPException(status_code=429, detail="Too many chat requests. Please try again shortly.")
-        events.append(now)
+        key = self.client_ip(request, settings.trusted_proxy_ips)
+        with self._lock:
+            now = time.monotonic()
+            events = self._events[key]
+            while events and events[0] <= now - 60:
+                events.popleft()
+            if len(events) >= settings.chat_rate_limit_per_minute:
+                raise HTTPException(status_code=429, detail="Too many chat requests. Please try again shortly.")
+            events.append(now)
+
+    @staticmethod
+    def client_ip(request: Request, trusted_proxy_ranges: list[str]) -> str:
+        peer = request.client.host if request.client else "unknown"
+        try:
+            peer_ip = ipaddress.ip_address(peer)
+        except ValueError:
+            return peer
+        networks = [ipaddress.ip_network(item) for item in trusted_proxy_ranges]
+        if not any(peer_ip in network for network in networks):
+            return str(peer_ip)
+
+        forwarded = request.headers.get("x-forwarded-for", "")
+        candidates: list[ipaddress.IPv4Address | ipaddress.IPv6Address] = []
+        for value in forwarded.split(","):
+            try:
+                candidates.append(ipaddress.ip_address(value.strip()))
+            except ValueError:
+                continue
+        for candidate in reversed(candidates):
+            if not any(candidate in network for network in networks):
+                return str(candidate)
+        return str(peer_ip)
 
 
 chat_rate_limiter = RateLimiter()

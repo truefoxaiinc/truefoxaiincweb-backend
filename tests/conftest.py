@@ -13,12 +13,15 @@ from fastapi.testclient import TestClient
 
 from app.config import get_settings
 from app.main import app
+from app.security import chat_rate_limiter
 
 
 @pytest.fixture(autouse=True)
-def clean_database():
-    path = get_settings().database_file
-    path.unlink(missing_ok=True)
+def clean_database(tmp_path):
+    settings = get_settings()
+    settings.database_path = tmp_path / "test.sqlite3"
+    chat_rate_limiter._events.clear()
+    path = settings.database_file
     with TestClient(app) as client:
         yield client
     path.unlink(missing_ok=True)

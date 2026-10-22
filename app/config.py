@@ -1,4 +1,5 @@
 from functools import lru_cache
+import ipaddress
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlparse
@@ -25,6 +26,8 @@ class Settings(BaseSettings):
     leads_webhook_url: str = ""
     company_site_url: str = "https://truefoxaiinc.com"
     frontend_origins: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["http://localhost:3000"])
+    trusted_proxy_ips: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    conversation_capability_ttl_hours: int = Field(default=24, ge=1, le=720)
     openai_api_key: str = ""
     openai_base_url: str | None = None
     chat_model: str = "gpt-5-mini"
@@ -43,6 +46,15 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
+
+    @field_validator("trusted_proxy_ips", mode="before")
+    @classmethod
+    def parse_trusted_proxy_ips(cls, value: object) -> object:
+        if isinstance(value, str):
+            value = [item.strip() for item in value.split(",") if item.strip()]
+        if not isinstance(value, list):
+            return value
+        return [str(ipaddress.ip_network(item, strict=False)) for item in value]
 
     @field_validator("openai_base_url", mode="before")
     @classmethod
