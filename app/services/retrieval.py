@@ -1,6 +1,8 @@
+import hashlib
 import logging
 import math
 import re
+from collections import Counter
 from dataclasses import asdict, dataclass
 
 from app.config import get_settings
@@ -74,8 +76,10 @@ async def retrieve(
     query_embedding = await EmbeddingService().embed_one(query)
     query_terms = distinctive_terms(query)
     normalized = normalize_query(query)
+    chunks = all_chunks()
+    stored_dimensions = Counter(len(chunk["embedding"]) for chunk in chunks)
     scored: list[tuple[CandidateScore, dict[str, object]]] = []
-    for chunk in all_chunks():
+    for chunk in chunks:
         metadata = chunk.get("metadata", {})
         content = f"{chunk['title']} {metadata.get('heading', '')} {chunk['content']}"
         content_terms = distinctive_terms(content)
@@ -102,8 +106,17 @@ async def retrieve(
         scored.append((CandidateScore(str(chunk["document_id"]), str(chunk["title"]), str(chunk["source"]), round(semantic, 4), round(lexical, 4), round(title_match, 4), entity_match, intent_boost, penalty, round(final, 4), accepted, reason), chunk))
     scored.sort(key=lambda item: item[0].final, reverse=True)
     accepted = [(score, chunk) for score, chunk in scored if score.accepted]
+    query_fingerprint = hashlib.sha256(query.encode("utf-8")).hexdigest()[:12]
+    top_scores = [
+        (score.semantic, score.lexical, score.final, score.accepted)
+        for score, _ in scored[:5]
+    ]
+    logger.info(
+        "retrieval_summary query_fingerprint=%s query_chars=%d query_dimensions=%d stored_dimensions=%s intent=%s entity=%s candidates=%d accepted=%d top_scores=%s",
+        query_fingerprint, len(query), len(query_embedding), dict(stored_dimensions), intent, entity or "none", len(scored), len(accepted), top_scores,
+    )
     if not accepted:
-        logger.info("retrieval_no_results intent=%s entity=%s candidates=%d", intent, entity or "none", len(scored))
+        logger.info("retrieval_no_results query_fingerprint=%s intent=%s entity=%s candidates=%d", query_fingerprint, intent, entity or "none", len(scored))
     matches: list[dict[str, object]] = []
     citations: list[Citation] = []
     documents: set[str] = set()

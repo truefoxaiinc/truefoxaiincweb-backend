@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 
 from app.services.intent import Intent, classify_intent, detect_entity
@@ -20,22 +21,26 @@ def resolve_query(message: str, history: list[dict[str, str]]) -> ResolvedQuery:
     # prompt as retrieval hints without changing the message saved to history.
     contextual = detected.intent == Intent.FOLLOW_UP or _is_short_continuation(message)
     if not contextual or not history:
-        return ResolvedQuery(message, message, detected.intent, detected.entity, False)
+        return ResolvedQuery(message, _expand_web_development(message, detected.entity), detected.intent, detected.entity, False)
     subject = detected.entity or _recent_subject(history)
     if not subject:
         if detected.intent != Intent.FOLLOW_UP:
             return ResolvedQuery(message, message, detected.intent, detected.entity, False)
         return ResolvedQuery(message, message, Intent.UNKNOWN, None, False)
-    prior_goal = next((
-        item.get("content", "") for item in reversed(history)
-        if item.get("role") == "user" and item.get("content", "").strip()
-    ), "")
-    rewritten = f"{subject}. Visitor's request: {prior_goal}. Follow-up: {message.rstrip(' ?.!')}"
+    cleaned_message = message.rstrip().rstrip("?.!")
+    if subject == "Web Development":
+        prior_goal = next((
+            item.get("content", "") for item in reversed(history)
+            if item.get("role") == "user" and item.get("content", "").strip()
+        ), "")
+        rewritten = f"{subject}. Visitor's request: {prior_goal}. Follow-up: {cleaned_message}"
+    else:
+        rewritten = f"{cleaned_message} about {subject}"
     resolved = classify_intent(rewritten)
     intent = detected.intent if detected.intent not in {Intent.UNKNOWN, Intent.FOLLOW_UP} else resolved.intent
     if intent in {Intent.UNKNOWN, Intent.FOLLOW_UP}:
         intent = Intent.SERVICE_DETAIL if subject == "Web Development" else Intent.UNKNOWN
-    return ResolvedQuery(message, rewritten, intent, subject, True)
+    return ResolvedQuery(message, _expand_web_development(rewritten, subject), intent, subject, True)
 
 
 def _is_short_continuation(message: str) -> bool:
@@ -48,6 +53,15 @@ def _is_short_continuation(message: str) -> bool:
         or query.startswith(("yes", "sure", "i need", "i want", "we need", "we want"))
         or query in {"a chatbot", "chatbot", "for my business", "for our business"}
     )
+
+
+def _expand_web_development(query: str, entity: str | None) -> str:
+    if entity != "Web Development":
+        return query
+    # Canonical service terminology compensates for short phrasing and common
+    # spelling mistakes while keeping the visitor's original text in history.
+    cleaned = re.sub(r"\banabled\b", "enabled", query, flags=re.IGNORECASE)
+    return f"Web Development website web application {cleaned}"
 
 
 def _recent_subject(history: list[dict[str, str]]) -> str | None:
