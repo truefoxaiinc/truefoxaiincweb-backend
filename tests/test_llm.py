@@ -4,7 +4,7 @@ import httpx
 import pytest
 from openai import APITimeoutError, RateLimitError
 
-from app.services.embeddings import EmbeddingService
+from app.services.embeddings import EmbeddingProviderError, EmbeddingService
 from app.services.intent import Intent
 from app.services.llm import LLMService
 
@@ -144,7 +144,8 @@ async def test_rate_limit_logs_safe_provider_code_without_sensitive_details(capl
 
     embedding_service = EmbeddingService()
     embedding_service.client = SimpleNamespace(embeddings=FakeEmbeddings(rate_limit_error()))
-    await embedding_service.embed_many(["private customer text"])
+    with pytest.raises(EmbeddingProviderError):
+        await embedding_service.embed_many(["private customer text"])
 
     assert "error_code=insufficient_quota" in caplog.text
     assert "sk-test-sensitive-key" not in caplog.text
