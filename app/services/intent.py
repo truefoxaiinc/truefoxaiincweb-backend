@@ -99,6 +99,8 @@ def _depends_on_context(query: str) -> bool:
         r"(?:yes|yes please|sure|please do|i would like that|show me|show me examples|i would like to see an example|i like to see example of workflow|"
         r"tell me more|more|what about (?:that|it)|how does (?:that|it) work|how it works|"
         r"what are (?:its|the) features|features|pricing|price|is it available(?: in [a-z ]+)?|"
-        r"what technologies do you use for (?:that|it)|availability)[?.! ]*",
+        r"what technologies do you use(?: for (?:that|it))?|availability|"
+        r"how much does (?:that|it) cost|can you develop (?:that|it)|"
+        r"i need (?:it )?for my business|i need (?:a )?chatbot)[?.! ]*",
         query,
     ))

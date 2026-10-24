@@ -1,4 +1,6 @@
 from app.services.ingestion import ingest_text
+from app.services.intent import Intent
+from app.services.query_resolver import resolve_query
 
 
 async def seed_conversation_knowledge():
@@ -43,3 +45,30 @@ async def test_unknown_company_claims_do_not_receive_random_context(clean_databa
         payload = clean_database.post("/api/v1/chat", json={"message": query}).json()
         assert payload["citations"] == []
         assert "verified" in payload["answer"].lower()
+
+
+def test_short_option_selection_uses_prior_website_goal():
+    history = [
+        {"role": "user", "content": "I want to develop a website."},
+        {"role": "assistant", "content": "Would you like a marketing website, customer portal, or AI-enabled web app?"},
+    ]
+    resolved = resolve_query("AI-enabled web app", history)
+    assert resolved.original == "AI-enabled web app"
+    assert resolved.used_context is True
+    assert resolved.entity == "Web Development"
+    assert resolved.intent == Intent.SERVICE_DETAIL
+    assert "I want to develop a website" in resolved.retrieval_query
+    assert "AI-enabled web app" in resolved.retrieval_query
+
+
+def test_chatbot_follow_up_after_assistant_question_uses_same_subject():
+    history = [
+        {"role": "user", "content": "I want to develop a website."},
+        {"role": "assistant", "content": "Would you like an AI-enabled web app? We can discuss chatbot features."},
+        {"role": "user", "content": "AI-enabled web app"},
+        {"role": "assistant", "content": "What AI features are you interested in?"},
+    ]
+    resolved = resolve_query("Yes, I need a chatbot", history)
+    assert resolved.used_context is True
+    assert resolved.entity == "Web Development"
+    assert "Yes, I need a chatbot" in resolved.retrieval_query
