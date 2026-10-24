@@ -57,6 +57,34 @@ def test_confirmation_uses_assistant_proposed_subject():
     assert result.retrieval_query == "Yes please about AI Agents"
 
 
+@pytest.mark.parametrize("ack", ["yes", "okay", "sure", "continue"])
+def test_contextual_acknowledgment_uses_recent_project(ack):
+    history = [
+        {"role": "user", "content": "I want an AI-enabled website"},
+        {"role": "assistant", "content": "What should the AI feature help your customers do?"},
+    ]
+    result = resolve_query(ack, history)
+    assert result.used_context
+    assert result.entity == "Web Development"
+    assert "AI-enabled website" in result.retrieval_query
+
+
+def test_how_can_you_help_stays_on_current_project():
+    history = [{"role": "user", "content": "AI-enabled web app"}]
+    result = resolve_query("How can you help?", history)
+    assert result.used_context
+    assert result.entity == "Web Development"
+    assert "Web Development" in result.retrieval_query
+
+
+def test_topic_switch_does_not_inherit_previous_project():
+    history = [{"role": "user", "content": "I need an AI-enabled web app"}]
+    result = resolve_query("How do I apply for a job?", history)
+    assert result.intent == Intent.CAREERS
+    assert not result.used_context
+    assert "Web Development" not in result.retrieval_query
+
+
 @pytest.mark.parametrize(
     ("assistant_message", "follow_up", "subject"),
     [

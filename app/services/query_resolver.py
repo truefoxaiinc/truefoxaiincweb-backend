@@ -19,7 +19,7 @@ def resolve_query(message: str, history: list[dict[str, str]]) -> ResolvedQuery:
     # service entity, so intent classification alone cannot tell that they
     # continue the prior turn. Preserve the latest user goal and assistant
     # prompt as retrieval hints without changing the message saved to history.
-    contextual = detected.intent == Intent.FOLLOW_UP or _is_short_continuation(message)
+    contextual = detected.intent == Intent.FOLLOW_UP or _is_short_continuation(message) or _is_contextual_question(message)
     if not contextual or not history:
         return ResolvedQuery(message, _expand_web_development(message, detected.entity), detected.intent, detected.entity, False)
     subject = detected.entity or _recent_subject(history)
@@ -28,11 +28,12 @@ def resolve_query(message: str, history: list[dict[str, str]]) -> ResolvedQuery:
             return ResolvedQuery(message, message, detected.intent, detected.entity, False)
         return ResolvedQuery(message, message, Intent.UNKNOWN, None, False)
     cleaned_message = message.rstrip().rstrip("?.!")
+    prior_goal = next((
+        item.get("content", "") for item in reversed(history)
+        if item.get("role") == "user" and item.get("content", "").strip()
+        and not _is_acknowledgment(item.get("content", ""))
+    ), "")
     if subject == "Web Development":
-        prior_goal = next((
-            item.get("content", "") for item in reversed(history)
-            if item.get("role") == "user" and item.get("content", "").strip()
-        ), "")
         rewritten = f"{subject}. Visitor's request: {prior_goal}. Follow-up: {cleaned_message}"
     else:
         rewritten = f"{cleaned_message} about {subject}"
@@ -50,9 +51,17 @@ def _is_short_continuation(message: str) -> bool:
         return False
     return bool(
         detect_entity(query)
-        or query.startswith(("yes", "sure", "i need", "i want", "we need", "we want"))
+        or query.startswith(("yes", "sure", "okay", "ok", "continue", "go on", "i need", "i want", "we need", "we want"))
         or query in {"a chatbot", "chatbot", "for my business", "for our business"}
     )
+
+
+def _is_acknowledgment(message: str) -> bool:
+    return bool(re.fullmatch(r"\s*(?:yes(?: please)?|okay|ok|sure|continue|go on|please do)[?.! ]*", message, re.IGNORECASE))
+
+
+def _is_contextual_question(message: str) -> bool:
+    return bool(re.fullmatch(r"\s*(?:how can (?:you|truefox ai) help(?: me| us)?|tell me more|what technologies do you use)[?.! ]*", message, re.IGNORECASE))
 
 
 def _expand_web_development(query: str, entity: str | None) -> str:

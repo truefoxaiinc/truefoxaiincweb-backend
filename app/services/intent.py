@@ -89,14 +89,14 @@ def classify_intent(text: str) -> QueryIntent:
         return QueryIntent(Intent.SERVICES, confidence=0.9)
     if re.search(r"\b(truefox|company|about you|who is truefox)\b", query):
         return QueryIntent(Intent.COMPANY_OVERVIEW, confidence=0.85)
-    if _depends_on_context(query):
+    if _depends_on_context(query) or re.fullmatch(r"how can (?:you|truefox ai) help(?: me| us)?", query):
         return QueryIntent(Intent.FOLLOW_UP, confidence=0.85)
     return QueryIntent(Intent.UNKNOWN, confidence=0.5)
 
 
 def _depends_on_context(query: str) -> bool:
     return bool(re.fullmatch(
-        r"(?:yes|yes please|sure|please do|i would like that|show me|show me examples|i would like to see an example|i like to see example of workflow|"
+        r"(?:yes|yes please|okay|ok|sure|continue|go on|please do|i would like that|show me|show me examples|i would like to see an example|i like to see example of workflow|"
         r"tell me more|more|what about (?:that|it)|how does (?:that|it) work|how it works|"
         r"what are (?:its|the) features|features|pricing|price|is it available(?: in [a-z ]+)?|"
         r"what technologies do you use(?: for (?:that|it))?|availability|"

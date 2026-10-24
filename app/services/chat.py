@@ -44,7 +44,9 @@ async def chat(message: str, conversation_id: str | None, capability: str = "") 
     identifier, new_capability = _get_conversation(conversation_id, capability)
     identifier, new_capability, history, resolved, matches, citations = await _prepare(message, identifier, new_capability)
     save_message(identifier, "user", message)
-    relevant_history = history[-6:] if resolved.used_context or resolved.intent == Intent.SMALL_TALK else []
+    # The repository returns only the last eight authorized messages; keep the
+    # recent turns for every request so the model can continue naturally.
+    relevant_history = history[-6:]
     answer = await LLMService().answer(resolved.retrieval_query, relevant_history, [str(item["content"]) for item in matches], intent=resolved.intent, entity=resolved.entity, conversation_id=identifier)
     citation_data = [item.model_dump() for item in citations]
     save_message(identifier, "assistant", answer, citation_data)
@@ -62,7 +64,7 @@ async def stream_chat(message: str, conversation_id: str | None, capability: str
         meta["capability_token"] = new_capability
     yield _event("meta", meta)
     pieces: list[str] = []
-    relevant_history = history[-6:] if resolved.used_context or resolved.intent == Intent.SMALL_TALK else []
+    relevant_history = history[-6:]
     async for delta in LLMService().stream(resolved.retrieval_query, relevant_history, [str(item["content"]) for item in matches], intent=resolved.intent, entity=resolved.entity, conversation_id=identifier):
         pieces.append(delta)
         yield _event("delta", {"text": delta})

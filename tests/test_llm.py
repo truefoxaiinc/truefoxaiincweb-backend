@@ -102,6 +102,27 @@ async def test_successful_provider_answer_is_returned_with_grounding():
 
 
 @pytest.mark.asyncio
+async def test_follow_up_prompt_preserves_history_and_discovery_guidance():
+    service = LLMService()
+    service.client = FakeClient([response("What should the app help your customers do?")])
+    history = [
+        {"role": "user", "content": "I want an AI-enabled website"},
+        {"role": "assistant", "content": "What AI features are you interested in?"},
+        {"role": "user", "content": "A chatbot"},
+    ]
+    answer = await service.answer(
+        "AI-enabled website with chatbot", history,
+        ["Verified context: Truefox AI provides website and web application development."],
+        intent=Intent.SERVICE_DETAIL, entity="Web Development",
+    )
+    assert "What should" in answer
+    submitted = service.client.responses.calls[0]
+    assert [item["content"] for item in submitted["input"][:-1]] == [item["content"] for item in history]
+    assert "Do not repeat a service list" in submitted["instructions"]
+    assert "visitor statements" in submitted["instructions"]
+
+
+@pytest.mark.asyncio
 async def test_empty_output_logs_safe_response_diagnostics(caplog):
     service = LLMService()
     service.client = FakeClient([response(None, status="incomplete", incomplete_details=SimpleNamespace(reason="max_output_tokens"), output=[SimpleNamespace(type="reasoning")], usage=SimpleNamespace(input_tokens=10, output_tokens=2, total_tokens=12, output_tokens_details=SimpleNamespace(reasoning_tokens=2)))])

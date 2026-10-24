@@ -47,6 +47,32 @@ async def test_unknown_company_claims_do_not_receive_random_context(clean_databa
         assert "verified" in payload["answer"].lower()
 
 
+async def test_project_discovery_keeps_original_user_messages_and_citations(clean_database):
+    await ingest_text(
+        title="Web Development", source="/web-development",
+        text="Truefox AI provides website and web application development, including AI-enabled web experiences.",
+        metadata={"document_type": "service", "category": "services", "entity_name": "Web Development"},
+    )
+    conversation_id = None
+    capability = None
+    for message in ("I want an AI-enabled website", "AI-enabled web app", "How can you help?", "Yes"):
+        response = clean_database.post(
+            "/api/v1/chat", json={"message": message, "conversation_id": conversation_id},
+            headers={"X-Conversation-Capability": capability} if capability else {},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        conversation_id = body["conversation_id"]
+        capability = body["capability_token"] or capability
+        assert body["citations"]
+    saved = clean_database.get(
+        f"/api/v1/conversations/{conversation_id}", headers={"X-Conversation-Capability": capability},
+    ).json()
+    assert [item["content"] for item in saved if item["role"] == "user"] == [
+        "I want an AI-enabled website", "AI-enabled web app", "How can you help?", "Yes",
+    ]
+
+
 def test_short_option_selection_uses_prior_website_goal():
     history = [
         {"role": "user", "content": "I want to develop a website."},
