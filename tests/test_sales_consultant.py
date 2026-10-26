@@ -1,6 +1,10 @@
-from app.services.intent import Intent, classify_intent, detect_entity
+from types import SimpleNamespace
+
+import pytest
+
+from app.services.intent import Intent, classify_intent
+from app.services.llm import SYSTEM_PROMPT, LLMService
 from app.services.query_resolver import resolve_query
-from app.services.llm import SYSTEM_PROMPT
 
 
 def test_cctv_and_camera_requests_map_to_security():
@@ -27,12 +31,6 @@ def test_sales_prompt_preserves_grounding_and_transparency():
     assert "at most ONE relevant next question" in SYSTEM_PROMPT
 
 
-import pytest
-from types import SimpleNamespace
-
-from app.services.llm import LLMService
-
-
 class RecordingResponses:
     def __init__(self):
         self.calls = []
@@ -55,3 +53,37 @@ async def test_missing_rag_context_still_allows_grounded_discovery():
     assert "which cameras" in answer
     assert len(responses.calls) == 1
     assert "No relevant company facts were retrieved" in responses.calls[0]["input"][-1]["content"]
+
+@pytest.mark.parametrize(
+    ("question", "entity"),
+    [
+        ("We need facial recognition attendance", "Biometric Intelligence"),
+        ("Build a private knowledge assistant", "Private AI Assistants"),
+        ("Can you do agentic automation?", "Agentic Automation"),
+        ("Connect IoT sensors with edge processing", "IoT & Edge AI"),
+        ("We need predictive analytics", "Custom AI & ML"),
+        ("Please build a mobile app", "Web & Mobile Products"),
+        ("Can you create a proof of concept?", "R&D & Product Validation"),
+        ("AI-powered CCTV security for a restaurant", "AI Smart Security"),
+    ],
+)
+def test_primary_service_intents(question, entity):
+    result = classify_intent(question)
+    assert result.intent == Intent.SERVICE_DETAIL
+    assert result.entity == entity
+
+
+def test_all_services_question_does_not_select_one_entity():
+    result = classify_intent("What other services do you offer?")
+    assert result.intent == Intent.SERVICES
+
+
+def test_greeting_with_requirement_is_not_discarded():
+    question = "Hi, I need AI-powered CCTV for my restaurant."
+    result = classify_intent(question)
+    assert result.intent == Intent.SERVICE_DETAIL
+    assert LLMService.deterministic_reply(question, result.intent, result.entity) is None
+
+
+def test_no_unverified_pricing_guardrail():
+    assert "numerical illustrative pricing" in SYSTEM_PROMPT

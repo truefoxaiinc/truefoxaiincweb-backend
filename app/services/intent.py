@@ -48,6 +48,38 @@ KNOWN_ENTITIES = {
     "iot edge ai": "IoT & Edge AI",
     "edge ai": "IoT & Edge AI",
     "custom ai": "Custom AI & ML",
+    "machine learning": "Custom AI & ML",
+    "predictive analytics": "Custom AI & ML",
+    "computer vision": "Custom AI & ML",
+    "biometric intelligence": "Biometric Intelligence",
+    "facial recognition": "Biometric Intelligence",
+    "face recognition": "Biometric Intelligence",
+    "face attendance": "Biometric Intelligence",
+    "biometric attendance": "Biometric Intelligence",
+    "liveness detection": "Biometric Intelligence",
+    "knowledge assistant": "Private AI Assistants",
+    "enterprise chatbot": "Private AI Assistants",
+    "rag chatbot": "Private AI Assistants",
+    "private chatbot": "Private AI Assistants",
+    "workflow automation": "Agentic Automation",
+    "ai workflow": "Agentic Automation",
+    "automate my workflow": "Agentic Automation",
+    "internet of things": "IoT & Edge AI",
+    "iot": "IoT & Edge AI",
+    "smart sensors": "IoT & Edge AI",
+    "embedded ai": "IoT & Edge AI",
+    "mobile app": "Web & Mobile Products",
+    "mobile application": "Web & Mobile Products",
+    "android app": "Web & Mobile Products",
+    "ios app": "Web & Mobile Products",
+    "saas": "Web & Mobile Products",
+    "enterprise software": "Web & Mobile Products",
+    "web and mobile": "Web & Mobile Products",
+    "research and development": "R&D & Product Validation",
+    "r&d": "R&D & Product Validation",
+    "proof of concept": "R&D & Product Validation",
+    "prototype": "R&D & Product Validation",
+    "feasibility study": "R&D & Product Validation",
 }
 
 
@@ -78,6 +110,8 @@ def classify_intent(text: str) -> QueryIntent:
     if re.fullmatch(r"(?:hi|hello|hey|hiya|howdy|good (?:morning|afternoon|evening)|how are you|"
                     r"how(?:'s| is) it going|what(?:'s| is) your name|who are you|thanks?|thank you|bye|goodbye)[! ]*", query):
         return QueryIntent(Intent.SMALL_TALK, confidence=0.99)
+    if re.search(r"\b(all|other|list|overview|different)\b.*\b(services?|solutions?|capabilities)\b|\b(services?|solutions?|capabilities)\b.*\b(all|other|offer|provide|available)\b", query):
+        return QueryIntent(Intent.SERVICES, confidence=0.95)
     if entity:
         kind = Intent.PRODUCT_DETAIL if entity == "Attention Minder" else Intent.SERVICE_DETAIL
         return QueryIntent(kind, entity, 0.98)

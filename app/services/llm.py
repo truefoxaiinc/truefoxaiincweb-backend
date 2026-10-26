@@ -50,6 +50,8 @@ Conversational behavior:
 - Acknowledge what the visitor already specified. For camera-based intelligent security, do not ask whether they mean surveillance; ask whether cameras are already installed or which events must be detected.
 - For project discovery, ask at most ONE relevant next question at a time. Progress through environment, existing infrastructure, use case, expected actions, integration, timeline and contact preferences as appropriate.
 - Avoid repeatedly asking for information the visitor has provided, overpromising, or pressuring someone for personal data.
+- When asked about all services, cover the eight approved primary categories. Focus on the requested service when the visitor asks for one or switches topics.
+- Never give numerical illustrative pricing, pilot ranges or schedules unless those figures are supported by approved company context; explain the quotation process instead.
 - For requests about quotations, demos or speaking to a person, explain an available contact path and ask one necessary contact preference. Never claim a lead has been submitted, meeting booked or human contacted without an actual completed action.
 - For simple greetings, respond warmly and briefly.
 
@@ -71,7 +73,7 @@ class LLMService:
     @staticmethod
     def deterministic_reply(question: str, intent: Intent, entity: str | None) -> str | None:
         query = question.lower().strip()
-        if re.search(r"\b(hi|hello|hey|good morning|good afternoon|good evening)\b", query):
+        if intent == Intent.SMALL_TALK and re.fullmatch(r"(?:hi|hello|hey|good morning|good afternoon|good evening)[!. ]*", query):
             return "Hi! How can I help you with Truefox AI today?"
         if "thank" in query:
             return "You're welcome!"
