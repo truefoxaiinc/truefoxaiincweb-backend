@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     lead_smtp_username: str = ""
     lead_smtp_password: str = ""
     lead_email_from: str = ""
-    lead_email_to: str = ""
+    lead_email_to: str = "info@truefoxaiinc.com"
     lead_smtp_ssl: bool = False
     company_site_url: str = "https://truefoxaiinc.com"
     frontend_origins: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["http://localhost:3000"])
