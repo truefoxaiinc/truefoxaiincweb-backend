@@ -6,6 +6,7 @@ from email.message import EmailMessage
 from email.utils import parseaddr
 
 from app.config import get_settings
+from app.database import transaction, utcnow
 from app.schemas import LeadSubmissionRequest
 
 logger = logging.getLogger(__name__)
@@ -77,10 +78,27 @@ def _send_email(lead: LeadSubmissionRequest) -> None:
 async def submit_lead(lead: LeadSubmissionRequest) -> bool:
     if not lead.consent_to_contact or not _configured():
         return False
+    with transaction() as connection:
+        claim = connection.execute(
+            "INSERT OR IGNORE INTO lead_notifications(conversation_id,status,created_at) VALUES(?,?,?)",
+            (lead.conversation_id, "pending", utcnow()),
+        )
+        if claim.rowcount == 0:
+            return False
     try:
         await asyncio.to_thread(_send_email, lead)
     except (OSError, smtplib.SMTPException, ValueError):
         logger.exception("lead_email_delivery_failed conversation_id=%s", lead.conversation_id)
+        with transaction() as connection:
+            connection.execute(
+                "DELETE FROM lead_notifications WHERE conversation_id=? AND status='pending'",
+                (lead.conversation_id,),
+            )
         return False
+    with transaction() as connection:
+        connection.execute(
+            "UPDATE lead_notifications SET status='sent', sent_at=? WHERE conversation_id=?",
+            (utcnow(), lead.conversation_id),
+        )
     logger.info("lead_email_delivered conversation_id=%s", lead.conversation_id)
     return True
