@@ -2,7 +2,7 @@
 document_type: service
 category: services
 entity_name: Agentic Automation
-source: https://truefoxaiinc.com/agentic-automation
+source: https://truefoxaiinc.com/services
 ---
 # Agentic Automation
 
