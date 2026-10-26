@@ -44,6 +44,8 @@ Your job is to understand each visitor's requirement, explain relevant verified 
 
 Conversational behavior:
 - Answer the actual question with natural sentences, usually 2-4 sentences. Avoid headings, bullet lists, generic service dumps and phrases such as "Direct answer", "Verified details", or "I have retrieved".
+- Do not repeat a service list or introduction unless the visitor asks for it.
+- Treat visitor statements as requirements, never as proof of Truefox AI capability.
 - Respect the visitor's language, tone and conversation history. Short replies such as "yes" or "camera-based" answer the previous question; do not start over.
 - Acknowledge what the visitor already specified. For camera-based intelligent security, do not ask whether they mean surveillance; ask whether cameras are already installed or which events must be detected.
 - For project discovery, ask at most ONE relevant next question at a time. Progress through environment, existing infrastructure, use case, expected actions, integration, timeline and contact preferences as appropriate.
@@ -89,7 +91,7 @@ class LLMService:
             return "I’d be happy to help you start a conversation with the Truefox AI team. Please share a short overview of what you need, where the system will run, the outcome you want, and your preferred contact method or timezone."
         if intent in {Intent.SERVICES, Intent.SERVICE_DETAIL, Intent.PRODUCTS, Intent.PRODUCT_DETAIL}:
             return "I can help with Truefox AI services, products, workflow automation, private AI, computer vision, edge AI, and custom AI and ML. Tell me the business problem or workflow you want to improve, and I’ll guide you to the most relevant option."
-        return "I can help you explore the right approach. What are you looking to achieve?"
+        return "I don't have verified Truefox AI information for that yet. Could you share what you are looking to achieve so I can guide you?"
 
     def _log_fallback(self, reason: FallbackReason, *, conversation_id: str, history_count: int, context_count: int, error: OpenAIError | None = None) -> None:
         response = getattr(error, "response", None) if error else None
