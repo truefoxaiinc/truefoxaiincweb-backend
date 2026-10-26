@@ -84,7 +84,11 @@ async def submit_lead(lead: LeadSubmissionRequest) -> bool:
             (lead.conversation_id, "pending", utcnow()),
         )
         if claim.rowcount == 0:
-            return False
+            row = connection.execute(
+                "SELECT status FROM lead_notifications WHERE conversation_id=?",
+                (lead.conversation_id,),
+            ).fetchone()
+            return bool(row and row["status"] == "sent")
     try:
         await asyncio.to_thread(_send_email, lead)
     except (OSError, smtplib.SMTPException, ValueError):
