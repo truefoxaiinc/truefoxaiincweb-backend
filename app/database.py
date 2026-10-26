@@ -45,6 +45,12 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);
+CREATE TABLE IF NOT EXISTS lead_notifications (
+  conversation_id TEXT PRIMARY KEY REFERENCES conversations(id) ON DELETE CASCADE,
+  status TEXT NOT NULL CHECK(status IN ('pending','sent')),
+  created_at TEXT NOT NULL,
+  sent_at TEXT
+);
 CREATE TABLE IF NOT EXISTS ingest_jobs (
   id TEXT PRIMARY KEY,
   filename TEXT NOT NULL,
