@@ -2,7 +2,7 @@
 document_type: service
 category: services
 entity_name: Private AI Assistants
-source: https://truefoxaiinc.com/private-ai-assistants
+source: https://truefoxaiinc.com/services
 ---
 # Private AI Assistants
 
