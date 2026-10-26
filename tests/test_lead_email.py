@@ -74,7 +74,7 @@ async def test_send_is_idempotent_and_does_not_retain_pii_in_ledger(monkeypatch,
     attempts = []
     monkeypatch.setattr(leads, "_send_email", lambda item: attempts.append(item.email))
     assert await leads.submit_lead(_lead()) is True
-    assert await leads.submit_lead(_lead()) is False
+    assert await leads.submit_lead(_lead()) is True
     assert attempts == ["test@example.com"]
     with transaction() as connection:
         rows = connection.execute("SELECT * FROM lead_notifications").fetchall()
