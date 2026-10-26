@@ -2,7 +2,7 @@
 document_type: service
 category: services
 entity_name: Web & Mobile Products
-source: https://truefoxaiinc.com/web-mobile-products
+source: https://truefoxaiinc.com/services
 ---
 # Web & Mobile Products
 
