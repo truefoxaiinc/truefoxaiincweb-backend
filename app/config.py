@@ -24,6 +24,13 @@ class Settings(BaseSettings):
     admin_jwt_audience: str = "truefox-ai-admin"
     admin_cookie_domain: str = ".truefoxaiinc.com"
     leads_webhook_url: str = ""
+    lead_smtp_host: str = ""
+    lead_smtp_port: int = Field(default=587, ge=1, le=65535)
+    lead_smtp_username: str = ""
+    lead_smtp_password: str = ""
+    lead_email_from: str = ""
+    lead_email_to: str = ""
+    lead_smtp_ssl: bool = False
     company_site_url: str = "https://truefoxaiinc.com"
     frontend_origins: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["http://localhost:3000"])
     trusted_proxy_ips: Annotated[list[str], NoDecode] = Field(default_factory=list)
