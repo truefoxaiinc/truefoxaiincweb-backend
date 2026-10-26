@@ -39,6 +39,12 @@ KNOWN_ENTITIES = {
     "private ai assistant": "Private AI Assistants",
     "private ai assistants": "Private AI Assistants",
     "smart security": "AI Smart Security",
+    "cctv": "AI Smart Security",
+    "surveillance": "AI Smart Security",
+    "video analytics": "AI Smart Security",
+    "intelligent security": "AI Smart Security",
+    "security system": "AI Smart Security",
+    "camera based": "AI Smart Security",
     "iot edge ai": "IoT & Edge AI",
     "edge ai": "IoT & Edge AI",
     "custom ai": "Custom AI & ML",
@@ -61,7 +67,7 @@ def normalize_query(text: str) -> str:
 def detect_entity(text: str) -> str | None:
     normalized = normalize_query(text)
     for alias, entity in sorted(KNOWN_ENTITIES.items(), key=lambda item: len(item[0]), reverse=True):
-        if alias in normalized:
+        if re.search(rf"\b{re.escape(normalize_query(alias))}\b", normalized):
             return entity
     return None
 

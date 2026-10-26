@@ -33,14 +33,16 @@ def resolve_query(message: str, history: list[dict[str, str]]) -> ResolvedQuery:
         if item.get("role") == "user" and item.get("content", "").strip()
         and not _is_acknowledgment(item.get("content", ""))
     ), "")
-    if subject == "Web Development":
+    if subject == "AI Smart Security":
+        rewritten = f"AI Smart Security CCTV video analytics. Visitor requirement: {prior_goal}. Follow-up: {cleaned_message}"
+    elif subject == "Web Development":
         rewritten = f"{subject}. Visitor's request: {prior_goal}. Follow-up: {cleaned_message}"
     else:
         rewritten = f"{cleaned_message} about {subject}"
     resolved = classify_intent(rewritten)
     intent = detected.intent if detected.intent not in {Intent.UNKNOWN, Intent.FOLLOW_UP} else resolved.intent
     if intent in {Intent.UNKNOWN, Intent.FOLLOW_UP}:
-        intent = Intent.SERVICE_DETAIL if subject == "Web Development" else Intent.UNKNOWN
+        intent = Intent.SERVICE_DETAIL if subject in {"Web Development", "AI Smart Security"} else Intent.UNKNOWN
     return ResolvedQuery(message, _expand_web_development(rewritten, subject), intent, subject, True)
 
 
