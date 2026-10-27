@@ -25,23 +25,23 @@ Example request:
 }
 ```
 
-The backend verifies conversation capability, request schema and consent before attempting an authenticated TLS email. A SQLite lead-notification ledger prevents duplicate sends for the same conversation. This is a handoff email, not a CRM workflow. The endpoint never sends raw transcripts, only the submitted, confirmed project summary.
+The backend verifies conversation capability, request schema and consent before attempting an OAuth2 Microsoft Graph sendMail request. A SQLite lead-notification ledger prevents duplicate sends for the same conversation. This is a handoff email, not a CRM workflow. The endpoint never sends raw transcripts, only the submitted, confirmed project summary.
 
-## Server configuration
+## Microsoft 365 setup
 
-Set the following **only in the production .env** (never commit secrets):
+Use Microsoft Graph **application** `Mail.Send` with admin consent. Register a dedicated app in Microsoft Entra ID, restrict its mailbox scope with Exchange Online RBAC for Applications, and use a dedicated, authorized sender mailbox (it can send to `info@truefoxaiinc.com`). The recipient is `info@truefoxaiinc.com`; sender must be an authorized mailbox.
+
+Set the following only in production `.env`:
 
 ```dotenv
-LEAD_SMTP_HOST=smtp.example.com
-LEAD_SMTP_PORT=587
-LEAD_SMTP_USERNAME=notification-account@example.com
-LEAD_SMTP_PASSWORD=replace-with-app-password
-LEAD_EMAIL_FROM=notification-account@example.com
+LEAD_GRAPH_TENANT_ID=<Directory tenant ID>
+LEAD_GRAPH_CLIENT_ID=<Application client ID>
+LEAD_GRAPH_CLIENT_SECRET=<Secret value>
+LEAD_EMAIL_FROM=<approved-sender@truefoxaiinc.com>
 LEAD_EMAIL_TO=info@truefoxaiinc.com
-LEAD_SMTP_SSL=false
 ```
 
-Use port 465 and `LEAD_SMTP_SSL=true` only when the provider requires implicit TLS. SMTP must support authentication and certificate verification; the 587 flow requires STARTTLS.
+Do not use SMTP mailbox/app passwords. Graph responds with HTTP 202 when a message is accepted for delivery; **acceptance is not proof of inbox delivery**. Check the recipient inbox and message trace after a consented test. No credentials should be pasted into chat or committed to Git. Restrict app permission scope to only the sending mailbox.
 
 ## Deploy safely
 
