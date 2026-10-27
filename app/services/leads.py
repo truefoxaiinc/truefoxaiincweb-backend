@@ -1,9 +1,8 @@
 import asyncio
 import logging
-import smtplib
-import ssl
-from email.message import EmailMessage
-from email.utils import parseaddr
+from urllib.parse import quote
+
+import httpx
 
 from app.config import get_settings
 from app.database import transaction, utcnow
@@ -16,9 +15,9 @@ def _configured() -> bool:
     settings = get_settings()
     return all(
         (
-            settings.lead_smtp_host,
-            settings.lead_smtp_username,
-            settings.lead_smtp_password,
+            settings.lead_graph_tenant_id,
+            settings.lead_graph_client_id,
+            settings.lead_graph_client_secret,
             settings.lead_email_from,
             settings.lead_email_to,
         )
@@ -27,17 +26,27 @@ def _configured() -> bool:
 
 def _send_email(lead: LeadSubmissionRequest) -> None:
     settings = get_settings()
-    sender = parseaddr(settings.lead_email_from)[1]
-    recipient = parseaddr(settings.lead_email_to)[1]
-    if not sender or not recipient or "\r" in sender or "\n" in recipient:
-        raise ValueError("Invalid lead email configuration")
-    message = EmailMessage()
-    message["Subject"] = "New Truefox AI project enquiry"
-    message["From"] = sender
-    message["To"] = recipient
-    message.set_content(
-        "\n".join(
-            [
+    tenant = settings.lead_graph_tenant_id.strip()
+    sender = settings.lead_email_from.strip()
+    recipient = settings.lead_email_to.strip()
+    if not (tenant and sender and recipient and "@" in sender and "@" in recipient):
+        raise ValueError("Invalid Graph email configuration")
+
+    with httpx.Client(timeout=15) as client:
+        token_response = client.post(
+            f"https://login.microsoftonline.com/{quote(tenant, safe='')}/oauth2/v2.0/token",
+            data={
+                "client_id": settings.lead_graph_client_id,
+                "client_secret": settings.lead_graph_client_secret,
+                "scope": "https://graph.microsoft.com/.default",
+                "grant_type": "client_credentials",
+            },
+        )
+        token_response.raise_for_status()
+        access_token = token_response.json()["access_token"]
+
+        body = "\n".join(
+            (
                 "A visitor explicitly agreed to share this project enquiry.",
                 "",
                 f"Name: {lead.name}",
@@ -49,30 +58,25 @@ def _send_email(lead: LeadSubmissionRequest) -> None:
                 lead.project_summary,
                 "",
                 f"Conversation ID: {lead.conversation_id}",
-            ]
+            )
         )
-    )
-    context = ssl.create_default_context()
-    if settings.lead_smtp_ssl:
-        with smtplib.SMTP_SSL(
-            settings.lead_smtp_host,
-            settings.lead_smtp_port,
-            timeout=12,
-            context=context,
-        ) as server:
-            server.login(settings.lead_smtp_username, settings.lead_smtp_password)
-            server.send_message(message)
-    else:
-        with smtplib.SMTP(
-            settings.lead_smtp_host,
-            settings.lead_smtp_port,
-            timeout=12,
-        ) as server:
-            server.ehlo()
-            server.starttls(context=context)
-            server.ehlo()
-            server.login(settings.lead_smtp_username, settings.lead_smtp_password)
-            server.send_message(message)
+        response = client.post(
+            f"https://graph.microsoft.com/v1.0/users/{quote(sender, safe='')}/sendMail",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "message": {
+                    "subject": "New Truefox AI project enquiry",
+                    "body": {"contentType": "Text", "content": body},
+                    "toRecipients": [
+                        {"emailAddress": {"address": recipient}}
+                    ],
+                },
+                "saveToSentItems": True,
+            },
+        )
+        response.raise_for_status()
+        if response.status_code != 202:
+            raise ValueError("Graph did not accept the email request")
 
 
 async def submit_lead(lead: LeadSubmissionRequest) -> bool:
@@ -91,7 +95,7 @@ async def submit_lead(lead: LeadSubmissionRequest) -> bool:
             return bool(row and row["status"] == "sent")
     try:
         await asyncio.to_thread(_send_email, lead)
-    except (OSError, smtplib.SMTPException, ValueError):
+    except (OSError, httpx.HTTPError, ValueError, KeyError):
         logger.exception("lead_email_delivery_failed conversation_id=%s", lead.conversation_id)
         with transaction() as connection:
             connection.execute(
