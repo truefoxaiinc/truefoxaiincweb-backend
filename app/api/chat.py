@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, Response
 from fastapi.responses import StreamingResponse
 
-from app.schemas import ChatRequest, ChatResponse, ConversationMessage
+from app.schemas import ChatRequest, ChatResponse, ConversationMessage, LeadSubmissionRequest, LeadSubmissionResponse
 from app.security import enforce_chat_rate_limit
 from app.services.chat import chat, stream_chat
+from app.services.leads import submit_lead
 from app.services.repository import authorize_conversation, conversation_messages
 
 router = APIRouter(prefix="/api/v1", tags=["chat"])
@@ -36,3 +37,22 @@ def get_conversation(conversation_id: str, x_conversation_capability: str = Head
     if not authorize_conversation(conversation_id, x_conversation_capability):
         raise HTTPException(status_code=404, detail="Conversation not found or unauthorized")
     return conversation_messages(conversation_id)
+
+
+
+@router.post("/leads", response_model=LeadSubmissionResponse, dependencies=[Depends(enforce_chat_rate_limit)])
+async def create_lead(
+    request: LeadSubmissionRequest,
+    response: Response,
+    x_conversation_capability: str = Header(default=""),
+) -> LeadSubmissionResponse:
+    response.headers["Cache-Control"] = "no-store"
+    if not authorize_conversation(request.conversation_id, x_conversation_capability):
+        raise HTTPException(status_code=404, detail="Conversation not found or unauthorized")
+    if not request.consent_to_contact:
+        raise HTTPException(status_code=422, detail="Explicit contact consent is required")
+    sent = await submit_lead(request)
+    return LeadSubmissionResponse(
+        status="sent" if sent else "not_sent",
+        message="Your enquiry was emailed to our team." if sent else "Email delivery is not configured or failed. Please use our contact page.",
+    )

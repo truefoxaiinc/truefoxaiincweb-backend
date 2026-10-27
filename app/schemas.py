@@ -24,6 +24,21 @@ class ChatResponse(BaseModel):
     citations: list[Citation]
 
 
+class LeadSubmissionRequest(BaseModel):
+    conversation_id: str = Field(min_length=1, max_length=100)
+    name: str = Field(min_length=2, max_length=120)
+    email: str = Field(min_length=3, max_length=254, pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+    phone: str | None = Field(default=None, max_length=40)
+    company: str | None = Field(default=None, max_length=160)
+    project_summary: str = Field(min_length=15, max_length=3000)
+    consent_to_contact: bool
+
+
+class LeadSubmissionResponse(BaseModel):
+    status: Literal["sent", "not_sent"]
+    message: str
+
+
 class DocumentResponse(BaseModel):
     id: str
     title: str
