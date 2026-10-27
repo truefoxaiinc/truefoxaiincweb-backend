@@ -54,5 +54,5 @@ async def create_lead(
     sent = await submit_lead(request)
     return LeadSubmissionResponse(
         status="sent" if sent else "not_sent",
-        message="Your enquiry was emailed to our team." if sent else "Email delivery is not configured or failed. Please use our contact page.",
+        message="Your enquiry was accepted for email delivery to our team." if sent else "Email delivery is not configured or failed. Please use our contact page.",
     )

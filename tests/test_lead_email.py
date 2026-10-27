@@ -56,9 +56,9 @@ async def test_send_is_idempotent_and_does_not_retain_pii_in_ledger(monkeypatch,
     test_settings = old_settings.model_copy(
         update={
             "database_path": tmp_path / "test.sqlite3",
-            "lead_smtp_host": "smtp.example.com",
-            "lead_smtp_username": "service",
-            "lead_smtp_password": "example",
+            "lead_graph_tenant_id": "tenant-test",
+            "lead_graph_client_id": "client-test",
+            "lead_graph_client_secret": "secret-test",
             "lead_email_from": "sender@example.com",
             "lead_email_to": "sales@example.com",
         }
